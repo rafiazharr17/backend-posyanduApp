@@ -6,13 +6,15 @@ import {
   updateBalita,
   deleteBalita,
 } from "../controllers/balitaController.js";
+import { authenticateToken } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-router.post("/", tambahBalita);
-router.get("/", getBalita);
-router.get("/:nik", getBalitaByNIK);
-router.put("/:nik", updateBalita);
-router.delete("/:nik", deleteBalita);
+// Semua route balita hanya bisa diakses kalau token valid
+router.post("/", authenticateToken, tambahBalita);
+router.get("/", authenticateToken, getBalita);
+router.get("/:nik", authenticateToken, getBalitaByNIK);
+router.put("/:nik", authenticateToken, updateBalita);
+router.delete("/:nik", authenticateToken, deleteBalita);
 
 export default router;
