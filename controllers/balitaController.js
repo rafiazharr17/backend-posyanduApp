@@ -1,6 +1,38 @@
 import db from "../db.js";
 
-// Tambah data balita
+// Fungsi bantu untuk cek hanya angka
+const isNumeric = (value) => /^\d+$/.test(value);
+
+// Fungsi bantu untuk validasi angka dan panjang digit
+const validateNumericFields = (fields) => {
+  const rules = {
+    nik_balita: { length: 16, label: "NIK Balita" },
+    anak_ke_berapa: { label: "Anak ke berapa" },
+    nomor_kk: { length: 16, label: "Nomor KK" },
+    nik_ortu: { length: 16, label: "NIK Orang Tua" },
+    nomor_telp_ortu: { label: "Nomor Telepon Orang Tua" },
+    rt: { maxLength: 3, label: "RT" },
+    rw: { maxLength: 3, label: "RW" },
+  };
+
+  for (const [key, value] of Object.entries(fields)) {
+    if (!isNumeric(value)) {
+      return `${rules[key]?.label || key} hanya boleh berisi angka`;
+    }
+
+    if (rules[key]?.length && value.length !== rules[key].length) {
+      return `${rules[key].label} harus ${rules[key].length} digit`;
+    }
+
+    if (rules[key]?.maxLength && value.length > rules[key].maxLength) {
+      return `${rules[key].label} maksimal ${rules[key].maxLength} digit`;
+    }
+  }
+
+  return null; // tidak ada error
+};
+
+// 🟢 Tambah data balita
 export const tambahBalita = (req, res) => {
   const {
     nik_balita,
@@ -16,6 +48,19 @@ export const tambahBalita = (req, res) => {
     rt,
     rw,
   } = req.body;
+
+  // 🔒 Validasi angka & panjang digit
+  const error = validateNumericFields({
+    nik_balita,
+    anak_ke_berapa,
+    nomor_kk,
+    nik_ortu,
+    nomor_telp_ortu,
+    rt,
+    rw,
+  });
+
+  if (error) return res.status(400).json({ message: error });
 
   const sql = `
     INSERT INTO balita (
@@ -52,7 +97,7 @@ export const tambahBalita = (req, res) => {
   );
 };
 
-// Ambil semua data balita
+// 🟡 Ambil semua data balita
 export const getBalita = (req, res) => {
   const sql = "SELECT * FROM balita ORDER BY created_at DESC";
   db.query(sql, (err, results) => {
@@ -64,7 +109,7 @@ export const getBalita = (req, res) => {
   });
 };
 
-// Ambil satu data berdasarkan NIK
+// 🟠 Ambil satu data berdasarkan NIK
 export const getBalitaByNIK = (req, res) => {
   const nik = req.params.nik;
   const sql = "SELECT * FROM balita WHERE nik_balita = ?";
@@ -76,7 +121,7 @@ export const getBalitaByNIK = (req, res) => {
   });
 };
 
-// Update data balita
+// 🔵 Update data balita
 export const updateBalita = (req, res) => {
   const nik = req.params.nik;
   const {
@@ -92,6 +137,18 @@ export const updateBalita = (req, res) => {
     rt,
     rw,
   } = req.body;
+
+  // 🔒 Validasi angka & panjang digit
+  const error = validateNumericFields({
+    anak_ke_berapa,
+    nomor_kk,
+    nik_ortu,
+    nomor_telp_ortu,
+    rt,
+    rw,
+  });
+
+  if (error) return res.status(400).json({ message: error });
 
   const sql = `
     UPDATE balita SET
@@ -124,7 +181,7 @@ export const updateBalita = (req, res) => {
   );
 };
 
-// Hapus data balita
+// 🔴 Hapus data balita
 export const deleteBalita = (req, res) => {
   const nik = req.params.nik;
   const sql = "DELETE FROM balita WHERE nik_balita = ?";
