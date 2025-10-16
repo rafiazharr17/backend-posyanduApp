@@ -5,6 +5,7 @@ import db from "./db.js";
 import authRoutes from "./routes/authRoutes.js";
 import balitaRoutes from "./routes/balitaRoutes.js";
 import perkembanganRoutes from "./routes/perkembanganRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
 
 dotenv.config();
 
@@ -27,6 +28,7 @@ db.connect((err) => {
 app.use("/api/auth", authRoutes);     // ✅ route auth
 app.use("/api/balita", balitaRoutes); // ✅ route balita
 app.use("/api/perkembangan", perkembanganRoutes); // ✅ route perkembangan
+app.use("/api/report", reportRoutes); // ✅ route report
 
 // === Route default ===
 app.get("/", (req, res) => {
