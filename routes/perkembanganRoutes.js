@@ -5,16 +5,20 @@ import {
   getPerkembanganByNIK,
   updatePerkembangan,
   deletePerkembangan,
+  getStatistikPerkembangan
 } from "../controllers/perkembanganController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
+
 // Semua route perkembangan butuh token login
+router.get("/statistik/bulan",authenticateToken,getStatistikPerkembangan);
 router.post("/", authenticateToken, tambahPerkembangan);
 router.get("/", authenticateToken, getPerkembangan);
 router.get("/:nik", authenticateToken, getPerkembanganByNIK);
 router.put("/:id", authenticateToken, updatePerkembangan);
 router.delete("/:id", authenticateToken, deletePerkembangan);
+
 
 export default router;

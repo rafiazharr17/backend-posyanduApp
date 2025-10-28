@@ -144,3 +144,70 @@ export const deletePerkembangan = (req, res) => {
     res.status(200).json({ message: "🗑️ Data perkembangan berhasil dihapus" });
   });
 };
+
+export const getStatistikPerkembangan = (req, res) => {
+  const bulan = parseInt(req.query.bulan);
+  const tahun = parseInt(req.query.tahun) || null;
+
+  if (!bulan || bulan < 1 || bulan > 12) {
+    return res.status(400).json({ message: "Bulan tidak valid (1–12)" });
+  }
+
+  // Ambil tahun terbaru jika tidak dikirim
+  const sqlTahun = `SELECT YEAR(MAX(tanggal_perubahan)) AS tahun_terbaru FROM perkembangan_balita`;
+
+  db.query(sqlTahun, (err, result) => {
+    if (err) {
+      return res.status(500).json({ message: "Gagal mengambil tahun terbaru" });
+    }
+
+    const tahunDipakai = tahun || result[0]?.tahun_terbaru;
+    if (!tahunDipakai) {
+      return res.status(404).json({ message: "Tidak ada data perkembangan" });
+    }
+
+    const sql = `
+      SELECT berat_badan, tinggi_badan
+      FROM perkembangan_balita
+      WHERE MONTH(tanggal_perubahan) = ? AND YEAR(tanggal_perubahan) = ?
+    `;
+
+    db.query(sql, [bulan, tahunDipakai], (err, results) => {
+      if (err) {
+        return res.status(500).json({ message: "Gagal mengambil data" });
+      }
+
+      if (results.length === 0) {
+        return res.status(200).json({
+          bulan,
+          tahun: tahunDipakai,
+          normal: 0,
+          kurang: 0,
+          obesitas: 0,
+          total: 0,
+        });
+      }
+
+      // Hitung IMT berdasarkan standar sederhana (BB/TB²)
+      let normal = 0, kurang = 0, obesitas = 0;
+
+      results.forEach((r) => {
+        const tinggiMeter = r.tinggi_badan / 100;
+        const imt = r.berat_badan / (tinggiMeter * tinggiMeter);
+
+        if (imt < 13.0) kurang++;
+        else if (imt <= 17.0) normal++;
+        else obesitas++;
+      });
+
+      res.status(200).json({
+        bulan,
+        tahun: tahunDipakai,
+        normal,
+        kurang,
+        obesitas,
+        total: normal + kurang + obesitas,
+      });
+    });
+  });
+};
