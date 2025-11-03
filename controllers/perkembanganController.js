@@ -154,6 +154,7 @@ export const getStatistikPerkembangan = (req, res) => {
     return res.status(400).json({ message: "Bulan tidak valid (1–12)" });
   }
 
+  // Ambil tahun terbaru jika tidak dikirim
   const sqlTahun = `SELECT YEAR(MAX(tanggal_perubahan)) AS tahun_terbaru FROM perkembangan_balita`;
 
   db.query(sqlTahun, (err, result) => {
@@ -182,37 +183,62 @@ export const getStatistikPerkembangan = (req, res) => {
         return res.status(200).json({
           bulan,
           tahun: tahunDipakai,
-          laki_laki: { kurang: 0, normal: 0, obesitas: 0, total: 0 },
-          perempuan: { kurang: 0, normal: 0, obesitas: 0, total: 0 },
+          normal: 0,
+          kurang: 0,
+          obesitas: 0,
           total: 0,
+          total_laki: 0,
+          total_perempuan: 0,
+          laki_laki: { kurang: 0, normal: 0, obesitas: 0 },
+          perempuan: { kurang: 0, normal: 0, obesitas: 0 },
         });
       }
 
-      // Variabel hitungan
-      const statistik = {
-        laki_laki: { kurang: 0, normal: 0, obesitas: 0, total: 0 },
-        perempuan: { kurang: 0, normal: 0, obesitas: 0, total: 0 },
-      };
+      // Hitung IMT berdasarkan standar sederhana (BB/TB²)
+      let normal = 0, kurang = 0, obesitas = 0;
+      let totalLaki = 0, totalPerempuan = 0;
 
-      // Loop data
+      // Tambahan per jenis kelamin
+      const detailLaki = { kurang: 0, normal: 0, obesitas: 0 };
+      const detailPerempuan = { kurang: 0, normal: 0, obesitas: 0 };
+
       results.forEach((r) => {
         const tinggiMeter = r.tinggi_badan / 100;
         const imt = r.berat_badan / (tinggiMeter * tinggiMeter);
-        const jk = r.jenis_kelamin === "L" ? "laki_laki" : "perempuan";
 
-        if (imt < 13.0) statistik[jk].kurang++;
-        else if (imt <= 17.0) statistik[jk].normal++;
-        else statistik[jk].obesitas++;
+        let kategori = "";
+        if (imt < 13.0) {
+          kurang++;
+          kategori = "kurang";
+        } else if (imt <= 17.0) {
+          normal++;
+          kategori = "normal";
+        } else {
+          obesitas++;
+          kategori = "obesitas";
+        }
 
-        statistik[jk].total++;
+        // Hitung jumlah laki-laki dan perempuan per kategori
+        if (r.jenis_kelamin === "L") {
+          totalLaki++;
+          detailLaki[kategori]++;
+        } else if (r.jenis_kelamin === "P") {
+          totalPerempuan++;
+          detailPerempuan[kategori]++;
+        }
       });
 
       res.status(200).json({
         bulan,
         tahun: tahunDipakai,
-        laki_laki: statistik.laki_laki,
-        perempuan: statistik.perempuan,
-        total: statistik.laki_laki.total + statistik.perempuan.total,
+        normal,
+        kurang,
+        obesitas,
+        total: normal + kurang + obesitas,
+        total_laki: totalLaki,
+        total_perempuan: totalPerempuan,
+        laki_laki: detailLaki,
+        perempuan: detailPerempuan,
       });
     });
   });
