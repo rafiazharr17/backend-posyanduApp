@@ -45,7 +45,7 @@ export const getLaporanPerkembangan = (req, res) => {
 
   db.query(query, [nik_balita], (err, result) => {
     if (err) {
-      console.error("❌ Gagal mengambil data laporan:", err);
+      console.error("Gagal mengambil data laporan:", err);
       return res.status(500).json({ message: "Gagal mengambil data laporan" });
     }
 
@@ -89,7 +89,7 @@ export const getLaporanPerkembangan = (req, res) => {
       }));
 
     res.status(200).json({
-      message: "✅ Laporan lengkap balita dan perkembangan berhasil diambil",
+      message: "Laporan lengkap balita dan perkembangan berhasil diambil",
       balita,
       perkembangan,
     });

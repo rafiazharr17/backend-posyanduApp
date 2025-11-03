@@ -18,9 +18,9 @@ app.use(express.json());
 // === Tes koneksi ke database ===
 db.connect((err) => {
   if (err) {
-    console.error("❌ Gagal terhubung ke database:", err);
+    console.error("Gagal terhubung ke database:", err);
   } else {
-    console.log("✅ Terhubung ke database MySQL!");
+    console.log("Terhubung ke database MySQL!");
   }
 });
 
@@ -38,5 +38,5 @@ app.get("/", (req, res) => {
 // === Jalankan server ===
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, "0.0.0.0", () =>
-  console.log(`🚀 Server berjalan di http://localhost:${PORT}`)
+  console.log(`Server berjalan di http://localhost:${PORT}`)
 );

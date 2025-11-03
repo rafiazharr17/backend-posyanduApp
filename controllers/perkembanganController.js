@@ -40,10 +40,10 @@ export const tambahPerkembangan = (req, res) => {
     ],
     (err) => {
       if (err) {
-        console.error("❌ Gagal menambah data perkembangan:", err);
+        console.error("Gagal menambah data perkembangan:", err);
         return res.status(500).json({ message: "Gagal menambahkan data perkembangan" });
       }
-      res.status(201).json({ message: "✅ Data perkembangan berhasil ditambahkan" });
+      res.status(201).json({ message: "Data perkembangan berhasil ditambahkan" });
     }
   );
 };
@@ -58,7 +58,7 @@ export const getPerkembangan = (req, res) => {
   `;
   db.query(sql, (err, results) => {
     if (err) {
-      console.error("❌ Gagal mengambil data:", err);
+      console.error("Gagal mengambil data:", err);
       return res.status(500).json({ message: "Gagal mengambil data perkembangan" });
     }
     res.status(200).json(results);
@@ -75,7 +75,7 @@ export const getPerkembanganByNIK = (req, res) => {
   `;
   db.query(sql, [nik], (err, results) => {
     if (err) {
-      console.error("❌ Gagal mengambil data:", err);
+      console.error("Gagal mengambil data:", err);
       return res.status(500).json({ message: "Gagal mengambil data perkembangan" });
     }
     if (results.length === 0)
@@ -124,10 +124,10 @@ export const updatePerkembangan = (req, res) => {
     ],
     (err) => {
       if (err) {
-        console.error("❌ Gagal memperbarui data:", err);
+        console.error("Gagal memperbarui data:", err);
         return res.status(500).json({ message: "Gagal memperbarui data perkembangan" });
       }
-      res.status(200).json({ message: "✅ Data perkembangan berhasil diperbarui" });
+      res.status(200).json({ message: "Data perkembangan berhasil diperbarui" });
     }
   );
 };
@@ -138,10 +138,10 @@ export const deletePerkembangan = (req, res) => {
   const sql = "DELETE FROM perkembangan_balita WHERE id = ?";
   db.query(sql, [id], (err) => {
     if (err) {
-      console.error("❌ Gagal menghapus data:", err);
+      console.error("Gagal menghapus data:", err);
       return res.status(500).json({ message: "Gagal menghapus data perkembangan" });
     }
-    res.status(200).json({ message: "🗑️ Data perkembangan berhasil dihapus" });
+    res.status(200).json({ message: "Data perkembangan berhasil dihapus" });
   });
 };
 
