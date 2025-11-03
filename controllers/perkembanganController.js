@@ -147,46 +147,77 @@ export const deletePerkembangan = (req, res) => {
 
 // STATISTIK PERKEMBANGAN + TOTAL JENIS KELAMIN
 export const getStatistikPerkembangan = (req, res) => {
-  // Query utama untuk menghitung status gizi berdasarkan jenis kelamin
-  const sqlStatistik = `
-    SELECT 
-      b.jenis_kelamin, 
-      p.kms AS status_gizi,
-      COUNT(*) AS total
-    FROM perkembangan_balita p
-    JOIN balita b ON p.nik_balita = b.nik_balita
-    GROUP BY b.jenis_kelamin, p.kms
-  `;
+  const bulan = parseInt(req.query.bulan);
+  const tahun = parseInt(req.query.tahun) || null;
 
-  db.query(sqlStatistik, (err, statistikResults) => {
+  if (!bulan || bulan < 1 || bulan > 12) {
+    return res.status(400).json({ message: "Bulan tidak valid (1–12)" });
+  }
+
+  // Ambil tahun terbaru jika tidak dikirim
+  const sqlTahun = `SELECT YEAR(MAX(tanggal_perubahan)) AS tahun_terbaru FROM perkembangan_balita`;
+
+  db.query(sqlTahun, (err, result) => {
     if (err) {
-      console.error("Gagal mengambil data statistik:", err);
-      return res.status(500).json({ message: "Gagal mengambil data statistik perkembangan" });
+      return res.status(500).json({ message: "Gagal mengambil tahun terbaru" });
     }
 
-    // Query kedua untuk menghitung total laki-laki dan perempuan
-    const sqlTotalJK = `
-      SELECT jenis_kelamin, COUNT(*) AS total
-      FROM balita
-      GROUP BY jenis_kelamin
+    const tahunDipakai = tahun || result[0]?.tahun_terbaru;
+    if (!tahunDipakai) {
+      return res.status(404).json({ message: "Tidak ada data perkembangan" });
+    }
+
+    const sql = `
+      SELECT p.berat_badan, p.tinggi_badan, b.jenis_kelamin
+      FROM perkembangan_balita p
+      JOIN balita b ON p.nik_balita = b.nik_balita
+      WHERE MONTH(p.tanggal_perubahan) = ? AND YEAR(p.tanggal_perubahan) = ?
     `;
 
-    db.query(sqlTotalJK, (err2, totalResults) => {
-      if (err2) {
-        console.error("Gagal mengambil total jenis kelamin:", err2);
-        return res.status(500).json({ message: "Gagal mengambil total jenis kelamin" });
+    db.query(sql, [bulan, tahunDipakai], (err, results) => {
+      if (err) {
+        return res.status(500).json({ message: "Gagal mengambil data" });
       }
 
-      const totalLaki = totalResults.find(r => r.jenis_kelamin === "L")?.total || 0;
-      const totalPerempuan = totalResults.find(r => r.jenis_kelamin === "P")?.total || 0;
+      if (results.length === 0) {
+        return res.status(200).json({
+          bulan,
+          tahun: tahunDipakai,
+          normal: 0,
+          kurang: 0,
+          obesitas: 0,
+          total: 0,
+          total_laki: 0,
+          total_perempuan: 0,
+        });
+      }
+
+      // Hitung IMT berdasarkan standar sederhana (BB/TB²)
+      let normal = 0, kurang = 0, obesitas = 0;
+      let totalLaki = 0, totalPerempuan = 0;
+
+      results.forEach((r) => {
+        const tinggiMeter = r.tinggi_badan / 100;
+        const imt = r.berat_badan / (tinggiMeter * tinggiMeter);
+
+        if (imt < 13.0) kurang++;
+        else if (imt <= 17.0) normal++;
+        else obesitas++;
+
+        // Hitung jumlah laki-laki dan perempuan
+        if (r.jenis_kelamin === "L") totalLaki++;
+        else if (r.jenis_kelamin === "P") totalPerempuan++;
+      });
 
       res.status(200).json({
-        statistik_gizi: statistikResults,
-        total_jenis_kelamin: {
-          laki_laki: totalLaki,
-          perempuan: totalPerempuan,
-          total_semua: totalLaki + totalPerempuan
-        }
+        bulan,
+        tahun: tahunDipakai,
+        normal,
+        kurang,
+        obesitas,
+        total: normal + kurang + obesitas,
+        total_laki: totalLaki,
+        total_perempuan: totalPerempuan,
       });
     });
   });
