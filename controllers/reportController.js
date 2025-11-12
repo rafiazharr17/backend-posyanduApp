@@ -1,6 +1,5 @@
 import db from "../db.js";
 
-// Format tanggal ke YYYY-MM-DD
 const formatDate = (date) => {
   if (!date) return null;
   return new Date(date).toISOString().split("T")[0];
@@ -53,7 +52,6 @@ export const getLaporanPerkembangan = (req, res) => {
       return res.status(404).json({ message: "Data balita tidak ditemukan" });
     }
 
-    // Data balita
     const balita = {
       nik_balita: result[0].nik_balita,
       nama_balita: result[0].nama_balita,
@@ -70,7 +68,6 @@ export const getLaporanPerkembangan = (req, res) => {
       tanggal_input_balita: formatDate(result[0].tanggal_input_balita),
     };
 
-    // Data perkembangan
     const perkembangan = result
       .filter((r) => r.id_perkembangan)
       .map((r) => ({

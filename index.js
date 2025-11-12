@@ -11,11 +11,9 @@ dotenv.config();
 
 const app = express();
 
-// === Middleware ===
 app.use(cors());
 app.use(express.json());
 
-// === Tes koneksi ke database ===
 db.connect((err) => {
   if (err) {
     console.error("Gagal terhubung ke database:", err);
@@ -24,18 +22,15 @@ db.connect((err) => {
   }
 });
 
-// === Routes utama ===
-app.use("/api/auth", authRoutes);     // ✅ route auth
-app.use("/api/balita", balitaRoutes); // ✅ route balita
-app.use("/api/perkembangan", perkembanganRoutes); // ✅ route perkembangan
-app.use("/api/report", reportRoutes); // ✅ route report
+app.use("/api/auth", authRoutes);    
+app.use("/api/balita", balitaRoutes); 
+app.use("/api/perkembangan", perkembanganRoutes);
+app.use("/api/report", reportRoutes);
 
-// === Route default ===
 app.get("/", (req, res) => {
   res.send("Backend Posyandu App is running...");
 });
 
-// === Jalankan server ===
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, "0.0.0.0", () =>
   console.log(`Server berjalan di http://localhost:${PORT}`)

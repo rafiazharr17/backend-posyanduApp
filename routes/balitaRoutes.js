@@ -10,7 +10,6 @@ import { authenticateToken } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-// Semua route balita hanya bisa diakses kalau token valid
 router.post("/", authenticateToken, tambahBalita);
 router.get("/", authenticateToken, getBalita);
 router.get("/:nik", authenticateToken, getBalitaByNIK);

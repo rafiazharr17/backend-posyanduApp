@@ -147,99 +147,100 @@ export const deletePerkembangan = (req, res) => {
 
 // STATISTIK PERKEMBANGAN + TOTAL JENIS KELAMIN
 export const getStatistikPerkembangan = (req, res) => {
-  const bulan = parseInt(req.query.bulan);
-  const tahun = parseInt(req.query.tahun) || null;
+  try {
+    const bulan = parseInt(req.query.bulan);
+    const tahun = parseInt(req.query.tahun) || null;
 
-  if (!bulan || bulan < 1 || bulan > 12) {
-    return res.status(400).json({ message: "Bulan tidak valid (1–12)" });
-  }
-
-  // Ambil tahun terbaru jika tidak dikirim
-  const sqlTahun = `SELECT YEAR(MAX(tanggal_perubahan)) AS tahun_terbaru FROM perkembangan_balita`;
-
-  db.query(sqlTahun, (err, result) => {
-    if (err) {
-      return res.status(500).json({ message: "Gagal mengambil tahun terbaru" });
+    if (!bulan || bulan < 1 || bulan > 12) {
+      return res.status(400).json({ message: "Bulan tidak valid (1–12)" });
     }
 
-    const tahunDipakai = tahun || result[0]?.tahun_terbaru;
-    if (!tahunDipakai) {
-      return res.status(404).json({ message: "Tidak ada data perkembangan" });
-    }
+    const sqlTahun = `SELECT YEAR(MAX(tanggal_perubahan)) AS tahun_terbaru FROM perkembangan_balita`;
 
-    const sql = `
-      SELECT p.berat_badan, p.tinggi_badan, b.jenis_kelamin
-      FROM perkembangan_balita p
-      JOIN balita b ON p.nik_balita = b.nik_balita
-      WHERE MONTH(p.tanggal_perubahan) = ? AND YEAR(p.tanggal_perubahan) = ?
-    `;
-
-    db.query(sql, [bulan, tahunDipakai], (err, results) => {
+    db.query(sqlTahun, (err, result) => {
       if (err) {
-        return res.status(500).json({ message: "Gagal mengambil data" });
+        console.error("[ERROR] Gagal ambil tahun:", err);
+        return res.status(500).json({ message: "Gagal mengambil tahun terbaru" });
       }
 
-      if (results.length === 0) {
-        return res.status(200).json({
+      const tahunDipakai = tahun || result[0]?.tahun_terbaru;
+      if (!tahunDipakai) {
+        return res.status(404).json({ message: "Tidak ada data perkembangan" });
+      }
+
+      const sql = `
+        SELECT p.kms, b.jenis_kelamin
+        FROM perkembangan_balita p
+        JOIN balita b ON p.nik_balita = b.nik_balita
+        WHERE MONTH(p.tanggal_perubahan) = ? AND YEAR(p.tanggal_perubahan) = ?
+      `;
+
+      db.query(sql, [bulan, tahunDipakai], (err, results) => {
+        if (err) {
+          console.error("[ERROR] Query statistik:", err);
+          return res.status(500).json({ message: "Gagal mengambil data perkembangan" });
+        }
+
+        if (results.length === 0) {
+          return res.status(200).json({
+            bulan,
+            tahun: tahunDipakai,
+            normal: 0,
+            kurang: 0,
+            obesitas: 0,
+            total: 0,
+            total_laki: 0,
+            total_perempuan: 0,
+            laki_laki: { kurang: 0, normal: 0, obesitas: 0 },
+            perempuan: { kurang: 0, normal: 0, obesitas: 0 },
+          });
+        }
+
+        let normal = 0, kurang = 0, obesitas = 0;
+        let totalLaki = 0, totalPerempuan = 0;
+        const detailLaki = { kurang: 0, normal: 0, obesitas: 0 };
+        const detailPerempuan = { kurang: 0, normal: 0, obesitas: 0 };
+
+        results.forEach((r) => {
+          const kms = (r.kms || "").toLowerCase().trim();
+          let kategori = "";
+
+          if (kms === "merah") {
+            kategori = "kurang";
+            kurang++;
+          } else if (kms === "hijau") {
+            kategori = "normal";
+            normal++;
+          } else if (kms === "kuning") {
+            kategori = "obesitas";
+            obesitas++;
+          }
+
+          if (r.jenis_kelamin === "L") {
+            totalLaki++;
+            if (kategori) detailLaki[kategori]++;
+          } else if (r.jenis_kelamin === "P") {
+            totalPerempuan++;
+            if (kategori) detailPerempuan[kategori]++;
+          }
+        });
+
+        res.status(200).json({
           bulan,
           tahun: tahunDipakai,
-          normal: 0,
-          kurang: 0,
-          obesitas: 0,
-          total: 0,
-          total_laki: 0,
-          total_perempuan: 0,
-          laki_laki: { kurang: 0, normal: 0, obesitas: 0 },
-          perempuan: { kurang: 0, normal: 0, obesitas: 0 },
+          normal,
+          kurang,
+          obesitas,
+          total: normal + kurang + obesitas,
+          total_laki: totalLaki,
+          total_perempuan: totalPerempuan,
+          laki_laki: detailLaki,
+          perempuan: detailPerempuan,
         });
-      }
-
-      // Hitung IMT berdasarkan standar sederhana (BB/TB²)
-      let normal = 0, kurang = 0, obesitas = 0;
-      let totalLaki = 0, totalPerempuan = 0;
-
-      // Tambahan per jenis kelamin
-      const detailLaki = { kurang: 0, normal: 0, obesitas: 0 };
-      const detailPerempuan = { kurang: 0, normal: 0, obesitas: 0 };
-
-      results.forEach((r) => {
-        const tinggiMeter = r.tinggi_badan / 100;
-        const imt = r.berat_badan / (tinggiMeter * tinggiMeter);
-
-        let kategori = "";
-        if (imt < 13.0) {
-          kurang++;
-          kategori = "kurang";
-        } else if (imt <= 17.0) {
-          normal++;
-          kategori = "normal";
-        } else {
-          obesitas++;
-          kategori = "obesitas";
-        }
-
-        // Hitung jumlah laki-laki dan perempuan per kategori
-        if (r.jenis_kelamin === "L") {
-          totalLaki++;
-          detailLaki[kategori]++;
-        } else if (r.jenis_kelamin === "P") {
-          totalPerempuan++;
-          detailPerempuan[kategori]++;
-        }
-      });
-
-      res.status(200).json({
-        bulan,
-        tahun: tahunDipakai,
-        normal,
-        kurang,
-        obesitas,
-        total: normal + kurang + obesitas,
-        total_laki: totalLaki,
-        total_perempuan: totalPerempuan,
-        laki_laki: detailLaki,
-        perempuan: detailPerempuan,
       });
     });
-  });
+  } catch (error) {
+    console.error("[ERROR] Statistik perkembangan:", error);
+    res.status(500).json({ message: "Terjadi kesalahan pada server" });
+  }
 };

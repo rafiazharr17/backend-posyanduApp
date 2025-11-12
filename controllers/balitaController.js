@@ -1,9 +1,6 @@
 import db from "../db.js";
 
-// Fungsi bantu untuk cek hanya angka
 const isNumeric = (value) => /^\d+$/.test(value);
-
-// Fungsi bantu untuk validasi angka dan panjang digit
 const validateNumericFields = (fields) => {
   const rules = {
     nik_balita: { length: 16, label: "NIK Balita" },
@@ -29,7 +26,7 @@ const validateNumericFields = (fields) => {
     }
   }
 
-  return null; // tidak ada error
+  return null; 
 };
 
 // Tambah data balita
@@ -49,7 +46,6 @@ export const tambahBalita = (req, res) => {
     rw,
   } = req.body;
 
-  // Validasi angka & panjang digit
   const error = validateNumericFields({
     nik_balita,
     anak_ke_berapa,
@@ -138,7 +134,6 @@ export const updateBalita = (req, res) => {
     rw,
   } = req.body;
 
-  // Validasi angka & panjang digit
   const error = validateNumericFields({
     anak_ke_berapa,
     nomor_kk,

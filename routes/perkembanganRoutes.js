@@ -12,7 +12,6 @@ import { authenticateToken } from "../middlewares/authMiddleware.js";
 const router = express.Router();
 
 
-// Semua route perkembangan butuh token login
 router.get("/statistik/bulan",authenticateToken,getStatistikPerkembangan);
 router.post("/", authenticateToken, tambahPerkembangan);
 router.get("/", authenticateToken, getPerkembangan);

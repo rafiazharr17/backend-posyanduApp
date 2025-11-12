@@ -2,9 +2,7 @@ import db from "../db.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
-// ------------------------
 // REGISTER USER
-// ------------------------
 export const register = (req, res) => {
   const { username, password } = req.body;
 
@@ -14,7 +12,6 @@ export const register = (req, res) => {
       .json({ message: "Username dan password wajib diisi" });
   }
 
-  // Cek apakah username sudah ada
   const checkQuery = "SELECT * FROM user WHERE username = ?";
   db.query(checkQuery, [username], (err, result) => {
     if (err) return res.status(500).json({ message: "Database error" });
@@ -22,7 +19,6 @@ export const register = (req, res) => {
       return res.status(400).json({ message: "Username sudah terdaftar" });
     }
 
-    // Enkripsi password
     const hashedPassword = bcrypt.hashSync(password, 10);
     const insertQuery = "INSERT INTO user (username, password) VALUES (?, ?)";
     db.query(insertQuery, [username, hashedPassword], (err2) => {
@@ -32,9 +28,7 @@ export const register = (req, res) => {
   });
 };
 
-// ------------------------
 // LOGIN USER
-// ------------------------
 export const login = (req, res) => {
   const { username, password } = req.body;
 
@@ -56,7 +50,6 @@ export const login = (req, res) => {
       return res.status(401).json({ message: "Password salah" });
     }
 
-    // Buat token JWT
     const token = jwt.sign(
       { id: user.id, username: user.username },
       process.env.JWT_SECRET,
