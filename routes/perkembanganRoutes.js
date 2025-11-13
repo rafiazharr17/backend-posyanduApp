@@ -5,7 +5,8 @@ import {
   getPerkembanganByNIK,
   updatePerkembangan,
   deletePerkembangan,
-  getStatistikPerkembangan
+  getStatistikPerkembangan,
+  getDetailPerkembangan
 } from "../controllers/perkembanganController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 
@@ -13,6 +14,7 @@ const router = express.Router();
 
 
 router.get("/statistik/bulan",authenticateToken,getStatistikPerkembangan);
+router.get("/bulanan/detail", getDetailPerkembangan); 
 router.post("/", authenticateToken, tambahPerkembangan);
 router.get("/", authenticateToken, getPerkembangan);
 router.get("/:nik", authenticateToken, getPerkembanganByNIK);
