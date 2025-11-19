@@ -336,3 +336,126 @@ export const getDetailPerkembangan = (req, res) => {
     });
   }
 };
+
+// LAPORAN KHUSUS (FEB & AGUSTUS)
+export const getLaporanKhusus = (req, res) => {
+  try {
+    const bulan = parseInt(req.query.bulan);
+    const tahun = parseInt(req.query.tahun);
+
+    // Hanya Februari (2) dan Agustus (8)
+    if (![2, 8].includes(bulan)) {
+      return res.status(400).json({
+        message: "Laporan khusus hanya tersedia untuk bulan Februari dan Agustus"
+      });
+    }
+
+    const sql = `
+      SELECT
+        b.nik_balita AS nik,
+        b.nomor_kk AS no_kk,
+        b.nama_balita AS nama,
+        b.jenis_kelamin,
+        b.tanggal_lahir,
+        b.anak_ke_berapa,
+        b.nama_ortu,
+        b.nik_ortu,
+        b.nomor_telp_ortu,
+        b.alamat,
+        b.rt,
+        b.rw,
+
+        p.berat_badan AS bb_bulan_ini,
+        p.tinggi_badan AS tb_bulan_ini,
+        p.cara_ukur,
+        p.kms,
+        p.imd,
+        p.asi_eks,
+        p.vitamin_a
+
+      FROM balita b
+      LEFT JOIN perkembangan_balita p
+        ON b.nik_balita = p.nik_balita
+        AND MONTH(p.tanggal_perubahan) = ?
+        AND YEAR(p.tanggal_perubahan) = ?
+
+      ORDER BY b.nama_balita ASC
+    `;
+
+    db.query(sql, [bulan, tahun], (err, results) => {
+      if (err) {
+        console.error("[ERROR LAPORAN KHUSUS]", err);
+        return res.status(500).json({
+          message: "Gagal mengambil data laporan khusus"
+        });
+      }
+
+      const finalData = results.map(row => ({
+        ...row,
+        bb_lahir: " ",   
+        tb_lahir: " "   
+      }));
+
+      return res.status(200).json({
+        success: true,
+        bulan,
+        tahun,
+        data: finalData
+      });
+    });
+
+  } catch (error) {
+    console.error("[ERROR LAPORAN KHUSUS]", error);
+    res.status(500).json({
+      message: "Terjadi kesalahan server"
+    });
+  }
+};
+
+// CEK apakah balita sudah input perkembangan bulan ini
+export const cekPerkembanganBulanIni = (req, res) => {
+  try {
+    const nik = req.query.nik;
+    const bulan = parseInt(req.query.bulan);
+    const tahun = parseInt(req.query.tahun);
+
+    if (!nik || !bulan || !tahun) {
+      return res.status(400).json({
+        success: false,
+        message: "Parameter nik, bulan, dan tahun diperlukan"
+      });
+    }
+
+    const sql = `
+      SELECT id 
+      FROM perkembangan_balita
+      WHERE nik_balita = ?
+      AND MONTH(tanggal_perubahan) = ?
+      AND YEAR(tanggal_perubahan) = ?
+      LIMIT 1
+    `;
+
+    db.query(sql, [nik, bulan, tahun], (err, results) => {
+      if (err) {
+        console.error("[ERROR CEK PERKEMBANGAN]", err);
+        return res.status(500).json({
+          success: false,
+          message: "Gagal mengecek data perkembangan"
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        sudah_input: results.length > 0
+      });
+    });
+
+  } catch (error) {
+    console.error("[ERROR CEK PERKEMBANGAN]", error);
+    res.status(500).json({
+      success: false,
+      message: "Terjadi kesalahan server"
+    });
+  }
+};
+

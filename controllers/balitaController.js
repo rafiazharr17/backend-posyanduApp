@@ -182,6 +182,6 @@ export const deleteBalita = (req, res) => {
   const sql = "DELETE FROM balita WHERE nik_balita = ?";
   db.query(sql, [nik], (err) => {
     if (err) return res.status(500).json({ message: "Gagal menghapus data" });
-    res.status(200).json({ message: "🗑️ Data balita berhasil dihapus" });
+    res.status(200).json({ message: "Data balita berhasil dihapus" });
   });
 };
