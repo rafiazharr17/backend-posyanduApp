@@ -6,9 +6,8 @@ import {
   updatePerkembangan,
   deletePerkembangan,
   getStatistikPerkembangan,
-  getDetailPerkembangan,
-  getLaporanKhusus,
-  cekPerkembanganBulanIni
+  cekPerkembanganBulanIni,
+  getBalitaPerluDiperhatikan
 } from "../controllers/perkembanganController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 
@@ -16,8 +15,7 @@ const router = express.Router();
 
 
 router.get("/statistik/bulan",authenticateToken,getStatistikPerkembangan);
-router.get("/bulanan/detail", authenticateToken,getDetailPerkembangan); 
-router.get("/laporan/khusus", authenticateToken, getLaporanKhusus);
+router.get("/perlu-diperhatikan", authenticateToken, getBalitaPerluDiperhatikan);
 router.get("/cek", authenticateToken, cekPerkembanganBulanIni);
 router.post("/", authenticateToken, tambahPerkembangan);
 router.get("/", authenticateToken, getPerkembangan);

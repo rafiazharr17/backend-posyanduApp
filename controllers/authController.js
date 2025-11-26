@@ -1,6 +1,12 @@
 import db from "../db.js";
 import bcrypt from "bcrypt";
+import fs from "fs";
+import { fileURLToPath } from "url";
+import path from "path";
 import jwt from "jsonwebtoken";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // REGISTER USER
 export const register = (req, res) => {
@@ -168,10 +174,10 @@ export const deleteFotoProfile = (req, res) => {
       return res.status(400).json({ message: "Tidak ada foto untuk dihapus" });
     }
 
-    const fs = require("fs");
-    const path = `uploads/${currentPhoto}`;
-    if (fs.existsSync(path)) {
-      fs.unlinkSync(path);
+    const filePath = path.join(__dirname, "../uploads", currentPhoto);
+
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
     }
 
     const sql = "UPDATE user SET foto_profile = NULL WHERE id = ?";

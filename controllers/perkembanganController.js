@@ -245,172 +245,7 @@ export const getStatistikPerkembangan = (req, res) => {
   }
 };
 
-//Detail perkembangan bulanan untuk PDF
-export const getDetailPerkembangan = (req, res) => {
-  try {
-    const bulan = parseInt(req.query.bulan);
-    const tahun = parseInt(req.query.tahun);
 
-    if (!bulan || bulan < 1 || bulan > 12) {
-      return res.status(400).json({ message: "Bulan tidak valid (1–12)" });
-    }
-
-    const semesterStart = bulan <= 6 ? 1 : 7;
-    const semesterEnd = bulan <= 6 ? 6 : 12;
-
-    const sql = `
-      SELECT
-        b.nik_balita AS nik,
-        b.nama_balita AS nama,
-        b.jenis_kelamin,
-        b.tanggal_lahir,
-        b.anak_ke_berapa,
-        b.nama_ortu,
-        b.nik_ortu,
-        b.nomor_telp_ortu,
-        b.alamat,
-        b.rt,
-        b.rw,
-
-        MONTH(p.tanggal_perubahan) AS bulan,
-        p.lingkar_lengan,
-        p.lingkar_kepala,
-        p.tinggi_badan,
-        p.berat_badan
-
-      FROM perkembangan_balita p
-      JOIN balita b ON p.nik_balita = b.nik_balita
-      WHERE YEAR(p.tanggal_perubahan) = ?
-      AND MONTH(p.tanggal_perubahan) BETWEEN ? AND ?
-      ORDER BY b.nama_balita ASC
-    `;
-
-    db.query(sql, [tahun, semesterStart, semesterEnd], (err, results) => {
-      if (err) {
-        console.error("[ERROR]", err);
-        return res.status(500).json({ message: "Gagal mengambil data" });
-      }
-
-      const grouped = {};
-
-      results.forEach(row => {
-        if (!grouped[row.nik]) {
-          grouped[row.nik] = {
-            nik: row.nik,
-            nama: row.nama,
-            jenis_kelamin: row.jenis_kelamin === 'L' ? "Laki-laki" : "Perempuan",
-            tanggal_lahir: row.tanggal_lahir,
-            anak_ke: row.anak_ke_berapa,
-            nama_ortu: row.nama_ortu,
-            nik_ortu: row.nik_ortu,
-            nomor_hp_ortu: row.nomor_telp_ortu,
-            alamat: row.alamat,
-            rt: row.rt,
-            rw: row.rw,
-            bulan: {}
-          };
-        }
-
-        grouped[row.nik].bulan[row.bulan] = {
-          ll: parseFloat(row.lingkar_lengan),
-          lk: parseFloat(row.lingkar_kepala),
-          tb: parseFloat(row.tinggi_badan),
-          bb: parseFloat(row.berat_badan),
-        };
-      });
-
-      return res.status(200).json({
-        success: true,
-        tahun,
-        bulan_mulai: semesterStart,
-        bulan_selesai: semesterEnd,
-        data: Object.values(grouped)
-      });
-    });
-
-  } catch (error) {
-    console.error("[ERROR] Semester perkembangan:", error);
-    res.status(500).json({
-      success: false,
-      message: "Terjadi kesalahan pada server"
-    });
-  }
-};
-
-// LAPORAN KHUSUS (FEB & AGUSTUS)
-export const getLaporanKhusus = (req, res) => {
-  try {
-    const bulan = parseInt(req.query.bulan);
-    const tahun = parseInt(req.query.tahun);
-
-    // Hanya Februari (2) dan Agustus (8)
-    if (![2, 8].includes(bulan)) {
-      return res.status(400).json({
-        message: "Laporan khusus hanya tersedia untuk bulan Februari dan Agustus"
-      });
-    }
-
-    const sql = `
-      SELECT
-        b.nik_balita AS nik,
-        b.nomor_kk AS no_kk,
-        b.nama_balita AS nama,
-        b.jenis_kelamin,
-        b.tanggal_lahir,
-        b.anak_ke_berapa,
-        b.nama_ortu,
-        b.nik_ortu,
-        b.nomor_telp_ortu,
-        b.alamat,
-        b.rt,
-        b.rw,
-
-        p.berat_badan AS bb_bulan_ini,
-        p.tinggi_badan AS tb_bulan_ini,
-        p.cara_ukur,
-        p.kms,
-        p.imd,
-        p.asi_eks,
-        p.vitamin_a
-
-      FROM balita b
-      LEFT JOIN perkembangan_balita p
-        ON b.nik_balita = p.nik_balita
-        AND MONTH(p.tanggal_perubahan) = ?
-        AND YEAR(p.tanggal_perubahan) = ?
-
-      ORDER BY b.nama_balita ASC
-    `;
-
-    db.query(sql, [bulan, tahun], (err, results) => {
-      if (err) {
-        console.error("[ERROR LAPORAN KHUSUS]", err);
-        return res.status(500).json({
-          message: "Gagal mengambil data laporan khusus"
-        });
-      }
-
-      const finalData = results.map(row => ({
-        ...row,
-        bb_lahir: " ",   
-        tb_lahir: " "   
-      }));
-
-      return res.status(200).json({
-        success: true,
-        bulan,
-        tahun,
-        data: finalData
-      });
-    });
-
-  } catch (error) {
-    console.error("[ERROR LAPORAN KHUSUS]", error);
-    res.status(500).json({
-      message: "Terjadi kesalahan server"
-    });
-  }
-};
 
 // CEK apakah balita sudah input perkembangan bulan ini
 export const cekPerkembanganBulanIni = (req, res) => {
@@ -459,3 +294,103 @@ export const cekPerkembanganBulanIni = (req, res) => {
   }
 };
 
+// Ambil data balita perlu diperhatikan
+export const getBalitaPerluDiperhatikan = (req, res) => {
+  try {
+    const sql = `
+      SELECT 
+        b.nama_balita AS nama,
+        b.nik_balita AS nik,
+        p.kms,
+        p.tanggal_perubahan AS tanggal_terakhir,
+        (
+          SELECT p2.kms 
+          FROM perkembangan_balita p2
+          WHERE p2.nik_balita = b.nik_balita
+          ORDER BY p2.tanggal_perubahan DESC
+          LIMIT 1 OFFSET 1
+        ) AS kms_sebelumnya
+      FROM balita b
+      LEFT JOIN (
+        SELECT p1.*
+        FROM perkembangan_balita p1
+        INNER JOIN (
+          SELECT nik_balita, MAX(tanggal_perubahan) AS max_tanggal
+          FROM perkembangan_balita
+          GROUP BY nik_balita
+        ) latest ON latest.nik_balita = p1.nik_balita 
+                AND latest.max_tanggal = p1.tanggal_perubahan
+      ) p ON p.nik_balita = b.nik_balita
+      ORDER BY p.tanggal_perubahan DESC;
+    `;
+
+    db.query(sql, (err, results) => {
+      if (err) {
+        console.error("[ERROR] getBalitaPerluDiperhatikan:", err);
+        return res.status(500).json({
+          success: false,
+          message: "Gagal mengambil data balita perlu diperhatikan"
+        });
+      }
+
+      const now = new Date();
+      const bulanIni = now.getMonth() + 1;
+      const tahunIni = now.getFullYear();
+
+      const output = results.map((r) => {
+        let prioritas = null;
+        let alasan = null;
+
+        if (r.kms === "Merah") {
+          prioritas = 1;
+          alasan = "Stunting atau obesitas";
+        }
+
+        else if (r.kms === "Kuning") {
+          prioritas = 2;
+          alasan = "Gizi perlu diperhatikan";
+        }
+
+        else if (
+          !r.tanggal_terakhir ||
+          new Date(r.tanggal_terakhir).getMonth() + 1 !== bulanIni ||
+          new Date(r.tanggal_terakhir).getFullYear() !== tahunIni
+        ) {
+          prioritas = 3;
+          alasan = "Belum diukur bulan ini";
+        }
+
+        else if (r.kms_sebelumnya && r.kms) {
+          const ranking = { "Hijau": 3, "Kuning": 2, "Merah": 1 };
+          if (ranking[r.kms] < ranking[r.kms_sebelumnya]) {
+            prioritas = 4;
+            alasan = "Status KMS menurun dari bulan sebelumnya";
+          }
+        }
+
+        return {
+          nama: r.nama,
+          nik: r.nik,
+          kms: r.kms,
+          tanggal_terakhir: r.tanggal_terakhir,
+          prioritas,
+          alasan,
+        };
+      }).filter((d) => d.prioritas !== null);
+
+      output.sort((a, b) => a.prioritas - b.prioritas);
+
+      res.status(200).json({
+        success: true,
+        data: output
+      });
+    });
+
+  } catch (error) {
+    console.error("[ERROR getBalitaPerluDiperhatikan]", error);
+    res.status(500).json({
+      success: false,
+      message: "Terjadi kesalahan server"
+    });
+  }
+};
