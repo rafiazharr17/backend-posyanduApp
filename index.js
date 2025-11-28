@@ -7,6 +7,7 @@ import balitaRoutes from "./routes/balitaRoutes.js";
 import perkembanganRoutes from "./routes/perkembanganRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import vaksinRoutes from "./routes/vaksinRoutes.js"; 
+import kelulusanRoutes from "./routes/kelulusanRoutes.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -32,6 +33,7 @@ app.use("/api/balita", balitaRoutes);
 app.use("/api/perkembangan", perkembanganRoutes);
 app.use("/api/report", reportRoutes);
 app.use("/api/vaksin", vaksinRoutes); 
+app.use("/api/kelulusan", kelulusanRoutes);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.get("/", (req, res) => {
