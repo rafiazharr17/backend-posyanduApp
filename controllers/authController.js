@@ -10,67 +10,85 @@ const __dirname = path.dirname(__filename);
 
 // REGISTER USER
 export const register = (req, res) => {
-  const { username, password } = req.body;
+    const { username, email, password } = req.body;
 
-  if (!username || !password) {
-    return res
-      .status(400)
-      .json({ message: "Username dan password wajib diisi" });
-  }
-
-  const checkQuery = "SELECT * FROM user WHERE username = ?";
-  db.query(checkQuery, [username], (err, result) => {
-    if (err) return res.status(500).json({ message: "Database error" });
-    if (result.length > 0) {
-      return res.status(400).json({ message: "Username sudah terdaftar" });
+    if (!email || !password) {
+        return res
+            .status(400)
+            .json({ message: "Email dan password wajib diisi" });
     }
 
-    const hashedPassword = bcrypt.hashSync(password, 10);
-    const insertQuery = "INSERT INTO user (username, password) VALUES (?, ?)";
-    db.query(insertQuery, [username, hashedPassword], (err2) => {
-      if (err2) return res.status(500).json({ message: "Gagal mendaftar" });
-      res.status(201).json({ message: "Registrasi berhasil" });
+    const finalUsername = username && username.trim() !== '' ? username : email;
+
+    const checkEmailQuery = "SELECT * FROM user WHERE email = ?";
+    db.query(checkEmailQuery, [email], (err, result) => {
+        if (err) return res.status(500).json({ message: "Database error" });
+        
+        if (result.length > 0) {
+            return res.status(400).json({ message: "Email sudah terdaftar." });
+        }
+
+
+        const checkUsernameQuery = "SELECT * FROM user WHERE username = ?";
+        db.query(checkUsernameQuery, [finalUsername], (errCheck, resCheck) => {
+            if (errCheck) return res.status(500).json({ message: "Database error" });
+            
+            let effectiveUsername = finalUsername;
+            if (resCheck.length > 0) {
+                 effectiveUsername = `${finalUsername}_${Date.now()}`.substring(0, 50);
+            }
+
+            const hashedPassword = bcrypt.hashSync(password, 10);
+            
+            const insertQuery = "INSERT INTO user (username, email, password) VALUES (?, ?, ?)";
+            db.query(insertQuery, [effectiveUsername, email, hashedPassword], (err2) => {
+                if (err2) return res.status(500).json({ message: "Gagal mendaftar" });
+                res.status(201).json({ message: "Registrasi berhasil" });
+            });
+        });
     });
-  });
 };
 
 // LOGIN USER
 export const login = (req, res) => {
-  const { username, password } = req.body;
+    const { email, password } = req.body; 
 
-  if (!username || !password) {
-    return res
-      .status(400)
-      .json({ message: "Username dan password wajib diisi" });
-  }
-
-  const query = "SELECT * FROM user WHERE username = ?";
-  db.query(query, [username], (err, result) => {
-    if (err) return res.status(500).json({ message: "Database error" });
-    if (result.length === 0)
-      return res.status(404).json({ message: "User tidak ditemukan" });
-
-    const user = result[0];
-    const isPasswordValid = bcrypt.compareSync(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ message: "Password salah" });
+    if (!email || !password) {
+        return res
+            .status(400)
+            .json({ message: "Email dan password wajib diisi" });
     }
 
-    const token = jwt.sign(
-      { id: user.id, username: user.username },
-      process.env.JWT_SECRET,
-      { expiresIn: "30d" }
-    );
+    const query = "SELECT * FROM user WHERE email = ?";
+    db.query(query, [email], (err, result) => {
+        if (err) return res.status(500).json({ message: "Database error" });
+        
+        if (result.length === 0)
+            return res.status(401).json({ message: "Email atau password salah" });
 
-    res.status(200).json({
-      message: "Login berhasil",
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-      },
+        const user = result[0];
+        
+        const isPasswordValid = bcrypt.compareSync(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: "Email atau password salah" });
+        }
+
+        const token = jwt.sign(
+            { id: user.id, email: user.email, username: user.username }, 
+            process.env.JWT_SECRET,
+            { expiresIn: "30d" }
+        );
+
+        res.status(200).json({
+            message: "Login berhasil",
+            token,
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+            },
+        });
     });
-  });
 };
 
 //update username
@@ -152,7 +170,7 @@ export const updateFotoProfile = (req, res) => {
 export const getMe = (req, res) => {
   const userId = req.user.id;
 
-  const sql = "SELECT id, username, foto_profile FROM user WHERE id = ?";
+  const sql = "SELECT id, username, email, foto_profile FROM user WHERE id = ?";
   db.query(sql, [userId], (err, result) => {
     if (err) return res.status(500).json({ message: "Database error" });
     if (result.length === 0) return res.status(404).json({ message: "User tidak ditemukan" });
