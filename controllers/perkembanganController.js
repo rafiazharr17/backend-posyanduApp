@@ -462,7 +462,7 @@ const getRank = (kategori) => {
     return 3;
 };
 
-// CONTROLLER: Get Balita Perlu Diperhatikan
+// Get Balita Perlu Diperhatikan
 export const getBalitaPerluDiperhatikan = (req, res) => {
     try {
         const sql = `
@@ -498,6 +498,8 @@ export const getBalitaPerluDiperhatikan = (req, res) => {
         ) latest ON latest.nik_balita = p1.nik_balita 
                 AND latest.max_tanggal = p1.tanggal_perubahan
       ) p ON p.nik_balita = b.nik_balita
+      LEFT JOIN kelulusan_balita k ON k.nik_balita = b.nik_balita
+      WHERE k.status IS NULL 
       ORDER BY p.tanggal_perubahan DESC;
     `;
 
@@ -594,6 +596,7 @@ export const getBalitaPerluDiperhatikan = (req, res) => {
     }
 };
 
+
 // Hitung SKDN
 export const getSKDN = (req, res) => {
     try {
@@ -607,8 +610,13 @@ export const getSKDN = (req, res) => {
             });
         }
 
-        // 1. HITUNG S (Total Balita)
-        const sqlS = `SELECT COUNT(*) AS S FROM balita`;
+        // 1. HITUNG S (Total Balita) — hanya yang BELUM LULUS
+        const sqlS = `
+            SELECT COUNT(*) AS S
+            FROM balita b
+            LEFT JOIN kelulusan_balita k ON k.nik_balita = b.nik_balita
+            WHERE k.status IS NULL
+        `;
 
         db.query(sqlS, (errS, resultS) => {
             if (errS) {
@@ -621,30 +629,33 @@ export const getSKDN = (req, res) => {
 
             const S = resultS[0].S;
 
-            // 2. HITUNG K (Balita punya KMS bulan ini)
+            // 2. HITUNG K (Memiliki KMS) — hanya balita yang BELUM LULUS
             const sqlK = `
-        SELECT COUNT(*) AS K
-        FROM perkembangan_balita
-        WHERE MONTH(tanggal_perubahan) = ?
-        AND YEAR(tanggal_perubahan) = ?
-        AND kms IS NOT NULL
-      `;
+                SELECT COUNT(DISTINCT b.nik_balita) AS K_PERSISTEN
+                FROM balita b
+                LEFT JOIN kelulusan_balita k ON k.nik_balita = b.nik_balita
+                INNER JOIN perkembangan_balita p ON b.nik_balita = p.nik_balita
+                WHERE (p.kms = 'Ada' OR p.kms = 'ada')
+                AND k.status IS NULL
+            `;
 
-            db.query(sqlK, [bulan, tahun], (errK, resultK) => {
+            db.query(sqlK, (errK, resultK) => {
                 if (errK) {
                     console.error("[ERROR] Hitung K:", errK);
                     return res.status(500).json({ success: false, message: "Gagal menghitung K" });
                 }
 
-                const K = resultK[0].K;
+                const K = resultK[0].K_PERSISTEN;
 
-                // 3. HITUNG D (Balita datang ditimbang bulan ini)
+                // 3. HITUNG D (Balita datang ditimbang bulan ini) — hanya BELUM LULUS
                 const sqlD = `
-          SELECT COUNT(DISTINCT nik_balita) AS D
-          FROM perkembangan_balita
-          WHERE MONTH(tanggal_perubahan) = ?
-          AND YEAR(tanggal_perubahan) = ?
-        `;
+                    SELECT COUNT(DISTINCT p.nik_balita) AS D
+                    FROM perkembangan_balita p
+                    LEFT JOIN kelulusan_balita k ON k.nik_balita = p.nik_balita
+                    WHERE MONTH(p.tanggal_perubahan) = ?
+                    AND YEAR(p.tanggal_perubahan) = ?
+                    AND k.status IS NULL
+                `;
 
                 db.query(sqlD, [bulan, tahun], (errD, resultD) => {
                     if (errD) {
@@ -654,23 +665,25 @@ export const getSKDN = (req, res) => {
 
                     const D = resultD[0].D;
 
-                    // 4. HITUNG N (Balita naik timbang berdasarkan KMS)
+                    // 4. HITUNG N (Naik BB) — hanya balita BELUM LULUS
                     const sqlN = `
-            SELECT 
-              p1.nik_balita,
-              p1.berat_badan AS bb_sekarang,
-              (
-                SELECT p2.berat_badan
-                FROM perkembangan_balita p2
-                WHERE p2.nik_balita = p1.nik_balita
-                AND p2.tanggal_perubahan < p1.tanggal_perubahan
-                ORDER BY p2.tanggal_perubahan DESC
-                LIMIT 1
-              ) AS bb_lalu
-            FROM perkembangan_balita p1
-            WHERE MONTH(p1.tanggal_perubahan) = ?
-            AND YEAR(p1.tanggal_perubahan) = ?
-          `;
+                        SELECT 
+                            p1.nik_balita,
+                            p1.berat_badan AS bb_sekarang,
+                            (
+                                SELECT p2.berat_badan
+                                FROM perkembangan_balita p2
+                                WHERE p2.nik_balita = p1.nik_balita
+                                AND p2.tanggal_perubahan < p1.tanggal_perubahan
+                                ORDER BY p2.tanggal_perubahan DESC
+                                LIMIT 1
+                            ) AS bb_lalu
+                        FROM perkembangan_balita p1
+                        LEFT JOIN kelulusan_balita k ON k.nik_balita = p1.nik_balita
+                        WHERE MONTH(p1.tanggal_perubahan) = ?
+                        AND YEAR(p1.tanggal_perubahan) = ?
+                        AND k.status IS NULL
+                    `;
 
                     db.query(sqlN, [bulan, tahun], (errN, resultN) => {
                         if (errN) {
@@ -698,11 +711,7 @@ export const getSKDN = (req, res) => {
                             K,
                             D,
                             N,
-                            persentase: {
-                                K_S,
-                                D_S,
-                                N_D
-                            }
+                            persentase: { K_S, D_S, N_D }
                         });
                     });
                 });
@@ -718,6 +727,7 @@ export const getSKDN = (req, res) => {
     }
 };
 
+
 // STATISTIK PERKEMBANGAN (AKTIF)
 export const getStatistikPerkembangan = (req, res) => {
     try {
@@ -728,7 +738,10 @@ export const getStatistikPerkembangan = (req, res) => {
             return res.status(400).json({ message: "Bulan tidak valid (1–12)" });
         }
 
-        const sqlTahun = `SELECT YEAR(MAX(tanggal_perubahan)) AS tahun_terbaru FROM perkembangan_balita`;
+        const sqlTahun = `
+            SELECT YEAR(MAX(tanggal_perubahan)) AS tahun_terbaru 
+            FROM perkembangan_balita
+        `;
 
         db.query(sqlTahun, (err, result) => {
             if (err) {
@@ -742,15 +755,18 @@ export const getStatistikPerkembangan = (req, res) => {
             }
 
             const sql = `
-        SELECT 
-          p.berat_badan, 
-          p.tanggal_perubahan,
-          b.jenis_kelamin, 
-          b.tanggal_lahir
-        FROM perkembangan_balita p
-        JOIN balita b ON p.nik_balita = b.nik_balita
-        WHERE MONTH(p.tanggal_perubahan) = ? AND YEAR(p.tanggal_perubahan) = ?
-      `;
+                SELECT 
+                    p.berat_badan,
+                    p.tanggal_perubahan,
+                    b.jenis_kelamin,
+                    b.tanggal_lahir
+                FROM perkembangan_balita p
+                JOIN balita b ON p.nik_balita = b.nik_balita
+                LEFT JOIN kelulusan_balita k ON k.nik_balita = b.nik_balita
+                WHERE MONTH(p.tanggal_perubahan) = ?
+                AND YEAR(p.tanggal_perubahan) = ?
+                AND k.status IS NULL
+            `;
 
             db.query(sql, [bulan, tahunDipakai], (err, results) => {
                 if (err) {
@@ -758,11 +774,11 @@ export const getStatistikPerkembangan = (req, res) => {
                     return res.status(500).json({ message: "Gagal mengambil data perkembangan" });
                 }
 
-                let normal = 0, kurang = 0, lebih = 0, obesitas = 0;
+                let buruk = 0, kurang = 0, normal = 0, lebih = 0, obesitas = 0;
                 let totalLaki = 0, totalPerempuan = 0;
 
-                const detailLaki = { kurang: 0, normal: 0, lebih: 0, obesitas: 0 };
-                const detailPerempuan = { kurang: 0, normal: 0, lebih: 0, obesitas: 0 };
+                const detailLaki = { buruk: 0, kurang: 0, normal: 0, lebih: 0, obesitas: 0 };
+                const detailPerempuan = { buruk: 0, kurang: 0, normal: 0, lebih: 0, obesitas: 0 };
 
                 if (results.length > 0) {
                     results.forEach((r) => {
@@ -772,13 +788,17 @@ export const getStatistikPerkembangan = (req, res) => {
                         const umurCheck = umurBulan > 60 ? 60 : umurBulan;
 
                         const standards = (gender === 'L') ? boysData[umurCheck] : girlsData[umurCheck];
-                        const sdMin2 = standards ? standards[1] : 0;
-                        const sdPlus2 = standards ? standards[2] : 999;
-                        const sdPlus3 = standards ? standards[3] : 999;
+                        const sdMin3 = standards[0];
+                        const sdMin2 = standards[1];
+                        const sdPlus2 = standards[2];
+                        const sdPlus3 = standards[3];
 
                         let kategori = "";
 
-                        if (berat < sdMin2) {
+                        if (berat < sdMin3) {
+                            kategori = "buruk";
+                            buruk++;
+                        } else if (berat >= sdMin3 && berat < sdMin2) {
                             kategori = "kurang";
                             kurang++;
                         } else if (berat >= sdMin2 && berat <= sdPlus2) {
@@ -794,10 +814,10 @@ export const getStatistikPerkembangan = (req, res) => {
 
                         if (gender === "L") {
                             totalLaki++;
-                            if (kategori) detailLaki[kategori]++;
+                            detailLaki[kategori]++;
                         } else if (gender === "P") {
                             totalPerempuan++;
-                            if (kategori) detailPerempuan[kategori]++;
+                            detailPerempuan[kategori]++;
                         }
                     });
                 }
@@ -805,20 +825,23 @@ export const getStatistikPerkembangan = (req, res) => {
                 res.status(200).json({
                     bulan,
                     tahun: tahunDipakai,
-                    normal,
+                    buruk,
                     kurang,
+                    normal,
                     lebih,
                     obesitas,
                     total: results.length,
                     total_laki: totalLaki,
                     total_perempuan: totalPerempuan,
                     laki_laki: detailLaki,
-                    perempuan: detailPerempuan,
+                    perempuan: detailPerempuan
                 });
             });
         });
+
     } catch (error) {
         console.error("[ERROR] Statistik perkembangan:", error);
         res.status(500).json({ message: "Terjadi kesalahan pada server" });
     }
 };
+

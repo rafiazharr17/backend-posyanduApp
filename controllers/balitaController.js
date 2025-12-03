@@ -95,7 +95,13 @@ export const tambahBalita = (req, res) => {
 
 // Ambil semua data balita
 export const getBalita = (req, res) => {
-  const sql = "SELECT * FROM balita ORDER BY created_at DESC";
+  const sql = `
+    SELECT b.* FROM balita b
+    LEFT JOIN kelulusan_balita k ON b.nik_balita = k.nik_balita
+    WHERE (k.status != 'LULUS' OR k.status IS NULL)
+    ORDER BY b.created_at DESC
+  `;
+
   db.query(sql, (err, results) => {
     if (err) {
       console.error(err);
