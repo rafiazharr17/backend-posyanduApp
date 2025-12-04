@@ -213,6 +213,9 @@ export const getLaporanKhusus = (req, res) => {
         b.rt,
         b.rw,
 
+        b.bb_lahir,     
+        b.tb_lahir,     
+
         p.berat_badan AS bb_bulan_ini,
         p.tinggi_badan AS tb_bulan_ini,
         p.cara_ukur,
@@ -238,17 +241,11 @@ export const getLaporanKhusus = (req, res) => {
         });
       }
 
-      const finalData = results.map(row => ({
-        ...row,
-        bb_lahir: " ",   
-        tb_lahir: " "   
-      }));
-
       return res.status(200).json({
         success: true,
         bulan,
         tahun,
-        data: finalData
+        data: results
       });
     });
 

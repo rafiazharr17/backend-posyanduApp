@@ -26,7 +26,7 @@ const validateNumericFields = (fields) => {
     }
   }
 
-  return null; 
+  return null;
 };
 
 // Tambah data balita
@@ -44,6 +44,8 @@ export const tambahBalita = (req, res) => {
     alamat,
     rt,
     rw,
+    bb_lahir,   
+    tb_lahir   
   } = req.body;
 
   const error = validateNumericFields({
@@ -62,9 +64,9 @@ export const tambahBalita = (req, res) => {
     INSERT INTO balita (
       nik_balita, nama_balita, jenis_kelamin, tanggal_lahir,
       anak_ke_berapa, nomor_kk, nama_ortu, nik_ortu,
-      nomor_telp_ortu, alamat, rt, rw
+      nomor_telp_ortu, alamat, rt, rw, bb_lahir, tb_lahir
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   db.query(
@@ -82,6 +84,8 @@ export const tambahBalita = (req, res) => {
       alamat,
       rt,
       rw,
+      bb_lahir,  
+      tb_lahir   
     ],
     (err) => {
       if (err) {
@@ -138,6 +142,8 @@ export const updateBalita = (req, res) => {
     alamat,
     rt,
     rw,
+    bb_lahir,   
+    tb_lahir  
   } = req.body;
 
   const error = validateNumericFields({
@@ -155,7 +161,7 @@ export const updateBalita = (req, res) => {
     UPDATE balita SET
       nama_balita=?, jenis_kelamin=?, tanggal_lahir=?, anak_ke_berapa=?,
       nomor_kk=?, nama_ortu=?, nik_ortu=?, nomor_telp_ortu=?,
-      alamat=?, rt=?, rw=?
+      alamat=?, rt=?, rw=?, bb_lahir=?, tb_lahir=?
     WHERE nik_balita=?
   `;
 
@@ -173,7 +179,9 @@ export const updateBalita = (req, res) => {
       alamat,
       rt,
       rw,
-      nik,
+      bb_lahir,  
+      tb_lahir,  
+      nik
     ],
     (err) => {
       if (err) return res.status(500).json({ message: "Gagal memperbarui data" });
