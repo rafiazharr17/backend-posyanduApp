@@ -8,7 +8,8 @@ import {
   getStatistikPerkembangan,
   cekPerkembanganBulanIni,
   getBalitaPerluDiperhatikan,
-  getSKDN
+  getSKDN,
+  getListBalitaByKategori
 } from "../controllers/perkembanganController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 
@@ -17,6 +18,7 @@ const router = express.Router();
 
 router.get("/statistik/bulan",authenticateToken,getStatistikPerkembangan);
 router.get("/perlu-diperhatikan", authenticateToken, getBalitaPerluDiperhatikan);
+router.get("/list-kategori", authenticateToken,getListBalitaByKategori);
 router.get("/skdn", authenticateToken, getSKDN);
 router.get("/cek", authenticateToken, cekPerkembanganBulanIni);
 router.post("/", authenticateToken, tambahPerkembangan);

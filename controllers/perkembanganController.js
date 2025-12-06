@@ -845,3 +845,96 @@ export const getStatistikPerkembangan = (req, res) => {
     }
 };
 
+// GET LIST BALITA BY KATEGORI
+export const getListBalitaByKategori = (req, res) => {
+    try {
+        const bulan = parseInt(req.query.bulan);
+        const tahun = parseInt(req.query.tahun);
+        const kategoriDicari = req.query.kategori; 
+
+        if (!bulan || !tahun || !kategoriDicari) {
+            return res.status(400).json({ message: "Parameter bulan, tahun, dan kategori diperlukan" });
+        }
+
+        const sql = `
+            SELECT 
+                p.berat_badan,
+                p.tinggi_badan,
+                p.tanggal_perubahan,
+                b.nama_balita,
+                b.nik_balita,
+                b.jenis_kelamin,
+                b.tanggal_lahir,
+                b.nama_ortu,
+                b.alamat
+            FROM perkembangan_balita p
+            JOIN balita b ON p.nik_balita = b.nik_balita
+            LEFT JOIN kelulusan_balita k ON k.nik_balita = b.nik_balita
+            WHERE MONTH(p.tanggal_perubahan) = ?
+            AND YEAR(p.tanggal_perubahan) = ?
+            AND k.status IS NULL
+            ORDER BY b.nama_balita ASC
+        `;
+
+        db.query(sql, [bulan, tahun], (err, results) => {
+            if (err) {
+                console.error("[ERROR] Query detail kategori:", err);
+                return res.status(500).json({ message: "Gagal mengambil data" });
+            }
+
+            const filteredData = [];
+
+            results.forEach((r) => {
+                const berat = parseFloat(r.berat_badan);
+                const gender = r.jenis_kelamin;
+                const umurBulan = hitungUmurBulan(r.tanggal_lahir, r.tanggal_perubahan);
+                const umurCheck = umurBulan > 60 ? 60 : umurBulan;
+
+                const standards = (gender === 'L') ? boysData[umurCheck] : girlsData[umurCheck];
+                const sdMin3 = standards[0];
+                const sdMin2 = standards[1];
+                const sdPlus2 = standards[2];
+                const sdPlus3 = standards[3];
+
+                let kategori = "";
+
+                if (berat < sdMin3) {
+                    kategori = "buruk";
+                } else if (berat >= sdMin3 && berat < sdMin2) {
+                    kategori = "kurang";
+                } else if (berat >= sdMin2 && berat <= sdPlus2) {
+                    kategori = "normal";
+                } else if (berat > sdPlus2 && berat <= sdPlus3) {
+                    kategori = "lebih";
+                } else {
+                    kategori = "obesitas";
+                }
+
+                // Filter hanya yang sesuai kategori yang diminta
+                if (kategori === kategoriDicari.toLowerCase()) {
+                    filteredData.push({
+                        nama_balita: r.nama_balita,
+                        nik_balita: r.nik_balita,
+                        jenis_kelamin: r.jenis_kelamin,
+                        tanggal_lahir: r.tanggal_lahir,
+                        umur_bulan: umurBulan,
+                        berat_badan: berat,
+                        tinggi_badan: r.tinggi_badan,
+                        nama_ortu: r.nama_ortu,
+                        alamat: r.alamat,
+                        kategori_gizi: kategori
+                    });
+                }
+            });
+
+            res.status(200).json({
+                success: true,
+                data: filteredData
+            });
+        });
+
+    } catch (error) {
+        console.error("[ERROR] Statistik detail:", error);
+        res.status(500).json({ message: "Terjadi kesalahan pada server" });
+    }
+};
