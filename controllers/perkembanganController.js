@@ -598,7 +598,7 @@ export const getBalitaPerluDiperhatikan = (req, res) => {
 
 
 // Hitung SKDN
-export const getSKDN = (req, res) => {
+export const getSKDN = async (req, res) => {
     try {
         const bulan = parseInt(req.query.bulan);
         const tahun = parseInt(req.query.tahun);
@@ -610,119 +610,123 @@ export const getSKDN = (req, res) => {
             });
         }
 
-        // 1. HITUNG S (Total Balita) — hanya yang BELUM LULUS
+        // Helper untuk membungkus db.query ke dalam Promise agar bisa pakai async/await
+        const query = (sql, params) => {
+            return new Promise((resolve, reject) => {
+                db.query(sql, params, (err, result) => {
+                    if (err) reject(err);
+                    else resolve(result);
+                });
+            });
+        };
+
+        // 1. HITUNG S (Total Balita - Sasaran) — hanya yang BELUM LULUS
         const sqlS = `
             SELECT COUNT(*) AS S
             FROM balita b
             LEFT JOIN kelulusan_balita k ON k.nik_balita = b.nik_balita
             WHERE k.status IS NULL
         `;
+        const resultS = await query(sqlS);
+        const S = resultS[0].S;
 
-        db.query(sqlS, (errS, resultS) => {
-            if (errS) {
-                console.error("[ERROR] Hitung S:", errS);
-                return res.status(500).json({
-                    success: false,
-                    message: "Gagal menghitung S"
-                });
+        // 2. HITUNG K (Memiliki KMS)
+        const sqlK = `
+            SELECT COUNT(DISTINCT b.nik_balita) AS K_PERSISTEN
+            FROM balita b
+            LEFT JOIN kelulusan_balita k ON k.nik_balita = b.nik_balita
+            INNER JOIN perkembangan_balita p ON b.nik_balita = p.nik_balita
+            WHERE (p.kms = 'Ada' OR p.kms = 'ada')
+            AND k.status IS NULL
+        `;
+        const resultK = await query(sqlK);
+        const K = resultK[0].K_PERSISTEN;
+
+        // 3. HITUNG D (Datang Ditimbang)
+        const sqlD = `
+            SELECT COUNT(DISTINCT p.nik_balita) AS D
+            FROM perkembangan_balita p
+            LEFT JOIN kelulusan_balita k ON k.nik_balita = p.nik_balita
+            WHERE MONTH(p.tanggal_perubahan) = ?
+            AND YEAR(p.tanggal_perubahan) = ?
+            AND k.status IS NULL
+        `;
+        const resultD = await query(sqlD, [bulan, tahun]);
+        const D = resultD[0].D;
+
+        // 4. HITUNG N (Naik Berat Badan)
+        const sqlN = `
+            SELECT 
+                p1.nik_balita,
+                p1.berat_badan AS bb_sekarang,
+                (
+                    SELECT p2.berat_badan
+                    FROM perkembangan_balita p2
+                    WHERE p2.nik_balita = p1.nik_balita
+                    AND p2.tanggal_perubahan < p1.tanggal_perubahan
+                    ORDER BY p2.tanggal_perubahan DESC
+                    LIMIT 1
+                ) AS bb_lalu
+            FROM perkembangan_balita p1
+            LEFT JOIN kelulusan_balita k ON k.nik_balita = p1.nik_balita
+            WHERE MONTH(p1.tanggal_perubahan) = ?
+            AND YEAR(p1.tanggal_perubahan) = ?
+            AND k.status IS NULL
+        `;
+        const resultN = await query(sqlN, [bulan, tahun]);
+        const N = resultN.filter(r => r.bb_lalu !== null && r.bb_sekarang > r.bb_lalu).length;
+
+        // 5. HITUNG JUMLAH LULUS PER BULAN (NEW)
+        const sqlLulus = `
+            SELECT COUNT(*) AS total_lulus
+            FROM kelulusan_balita
+            WHERE MONTH(tanggal_lulus) = ? 
+            AND YEAR(tanggal_lulus) = ?
+        `;
+        const resultLulus = await query(sqlLulus, [bulan, tahun]);
+        const jumlahLulus = resultLulus[0].total_lulus;
+
+        // 6. HITUNG S YANG UMURNYA 36 BULAN (NEW)
+        // Menggunakan logika: (TahunCek * 12 + BulanCek) - (TahunLahir * 12 + BulanLahir) = 36
+        const sqlS36 = `
+            SELECT COUNT(*) AS s_36
+            FROM balita b
+            LEFT JOIN kelulusan_balita k ON k.nik_balita = b.nik_balita
+            WHERE k.status IS NULL
+            AND ((? * 12 + ?) - (YEAR(b.tanggal_lahir) * 12 + MONTH(b.tanggal_lahir))) = 36
+        `;
+        const resultS36 = await query(sqlS36, [tahun, bulan]);
+        const jumlahS36 = resultS36[0].s_36;
+
+        // HITUNG PERSENTASE
+        const K_S = S > 0 ? (K / S * 100).toFixed(2) : "0.00";
+        const D_S = S > 0 ? (D / S * 100).toFixed(2) : "0.00";
+        const N_D = D > 0 ? (N / D * 100).toFixed(2) : "0.00";
+        const N_S = S > 0 ? (N / S * 100).toFixed(2) : "0.00"; // (NEW)
+
+        return res.status(200).json({
+            success: true,
+            bulan,
+            tahun,
+            S,
+            K,
+            D,
+            N,
+            jumlah_lulus: jumlahLulus, // Data baru
+            jumlah_s_36: jumlahS36,    // Data baru
+            persentase: { 
+                K_S, 
+                D_S, 
+                N_D,
+                N_S // Data baru
             }
-
-            const S = resultS[0].S;
-
-            // 2. HITUNG K (Memiliki KMS) — hanya balita yang BELUM LULUS
-            const sqlK = `
-                SELECT COUNT(DISTINCT b.nik_balita) AS K_PERSISTEN
-                FROM balita b
-                LEFT JOIN kelulusan_balita k ON k.nik_balita = b.nik_balita
-                INNER JOIN perkembangan_balita p ON b.nik_balita = p.nik_balita
-                WHERE (p.kms = 'Ada' OR p.kms = 'ada')
-                AND k.status IS NULL
-            `;
-
-            db.query(sqlK, (errK, resultK) => {
-                if (errK) {
-                    console.error("[ERROR] Hitung K:", errK);
-                    return res.status(500).json({ success: false, message: "Gagal menghitung K" });
-                }
-
-                const K = resultK[0].K_PERSISTEN;
-
-                // 3. HITUNG D (Balita datang ditimbang bulan ini) — hanya BELUM LULUS
-                const sqlD = `
-                    SELECT COUNT(DISTINCT p.nik_balita) AS D
-                    FROM perkembangan_balita p
-                    LEFT JOIN kelulusan_balita k ON k.nik_balita = p.nik_balita
-                    WHERE MONTH(p.tanggal_perubahan) = ?
-                    AND YEAR(p.tanggal_perubahan) = ?
-                    AND k.status IS NULL
-                `;
-
-                db.query(sqlD, [bulan, tahun], (errD, resultD) => {
-                    if (errD) {
-                        console.error("[ERROR] Hitung D:", errD);
-                        return res.status(500).json({ success: false, message: "Gagal menghitung D" });
-                    }
-
-                    const D = resultD[0].D;
-
-                    // 4. HITUNG N (Naik BB) — hanya balita BELUM LULUS
-                    const sqlN = `
-                        SELECT 
-                            p1.nik_balita,
-                            p1.berat_badan AS bb_sekarang,
-                            (
-                                SELECT p2.berat_badan
-                                FROM perkembangan_balita p2
-                                WHERE p2.nik_balita = p1.nik_balita
-                                AND p2.tanggal_perubahan < p1.tanggal_perubahan
-                                ORDER BY p2.tanggal_perubahan DESC
-                                LIMIT 1
-                            ) AS bb_lalu
-                        FROM perkembangan_balita p1
-                        LEFT JOIN kelulusan_balita k ON k.nik_balita = p1.nik_balita
-                        WHERE MONTH(p1.tanggal_perubahan) = ?
-                        AND YEAR(p1.tanggal_perubahan) = ?
-                        AND k.status IS NULL
-                    `;
-
-                    db.query(sqlN, [bulan, tahun], (errN, resultN) => {
-                        if (errN) {
-                            console.error("[ERROR] Hitung N:", errN);
-                            return res.status(500).json({
-                                success: false,
-                                message: "Gagal menghitung N"
-                            });
-                        }
-
-                        const N = resultN.filter(r =>
-                            r.bb_lalu !== null && r.bb_sekarang > r.bb_lalu
-                        ).length;
-
-                        // HITUNG PERSENTASE
-                        const K_S = S > 0 ? (K / S * 100).toFixed(2) : "0.00";
-                        const D_S = S > 0 ? (D / S * 100).toFixed(2) : "0.00";
-                        const N_D = D > 0 ? (N / D * 100).toFixed(2) : "0.00";
-
-                        return res.status(200).json({
-                            success: true,
-                            bulan,
-                            tahun,
-                            S,
-                            K,
-                            D,
-                            N,
-                            persentase: { K_S, D_S, N_D }
-                        });
-                    });
-                });
-            });
         });
 
     } catch (error) {
         console.error("[ERROR SKDN]", error);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
-            message: "Terjadi kesalahan server"
+            message: "Terjadi kesalahan server: " + error.message
         });
     }
 };
@@ -910,7 +914,6 @@ export const getListBalitaByKategori = (req, res) => {
                     kategori = "obesitas";
                 }
 
-                // Filter hanya yang sesuai kategori yang diminta
                 if (kategori === kategoriDicari.toLowerCase()) {
                     filteredData.push({
                         nama_balita: r.nama_balita,
