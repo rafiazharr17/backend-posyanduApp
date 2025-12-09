@@ -628,7 +628,7 @@ export const getSKDN = async (req, res) => {
             (
                 k.status IS NULL
                 OR (
-                    k.status = 'LULUS'
+                    k.status IN ('LULUS', 'PINDAH')
                     AND (
                          YEAR(k.tanggal_lulus) > ?
                       OR (YEAR(k.tanggal_lulus) = ? AND MONTH(k.tanggal_lulus) >= ?)
@@ -651,7 +651,7 @@ export const getSKDN = async (req, res) => {
             (
                 k.status IS NULL
                 OR (
-                    k.status = 'LULUS'
+                    k.status IN ('LULUS', 'PINDAH')
                     AND (
                          YEAR(k.tanggal_lulus) > ?
                       OR (YEAR(k.tanggal_lulus) = ? AND MONTH(k.tanggal_lulus) >= ?)
@@ -673,7 +673,7 @@ export const getSKDN = async (req, res) => {
             (
                 k.status IS NULL
                 OR (
-                    k.status = 'LULUS'
+                    k.status IN ('LULUS', 'PINDAH')
                     AND (
                          YEAR(k.tanggal_lulus) > ?
                       OR (YEAR(k.tanggal_lulus) = ? AND MONTH(k.tanggal_lulus) >= ?)
@@ -705,7 +705,7 @@ export const getSKDN = async (req, res) => {
             (
                 k.status IS NULL
                 OR (
-                    k.status = 'LULUS'
+                    k.status IN ('LULUS', 'PINDAH')
                     AND (
                          YEAR(k.tanggal_lulus) > ?
                       OR (YEAR(k.tanggal_lulus) = ? AND MONTH(k.tanggal_lulus) >= ?)
@@ -735,7 +735,7 @@ export const getSKDN = async (req, res) => {
             (
                 k.status IS NULL
                 OR (
-                    k.status = 'LULUS'
+                    k.status IN ('LULUS', 'PINDAH')
                     AND (
                          YEAR(k.tanggal_lulus) > ?
                       OR (YEAR(k.tanggal_lulus) = ? AND MONTH(k.tanggal_lulus) >= ?)
@@ -817,7 +817,7 @@ export const getStatistikPerkembangan = (req, res) => {
                 AND (
                     k.status IS NULL
                     OR (
-                        k.status = 'LULUS'
+                        k.status IN ('LULUS', 'PINDAH')
                         AND (
                             YEAR(k.tanggal_lulus) > ?
                             OR (YEAR(k.tanggal_lulus) = ? AND MONTH(k.tanggal_lulus) >= ?)
