@@ -270,7 +270,13 @@ export const getRekomendasiVaksin = (req, res) => {
 export const createVaksin = (req, res) => {
   const { kode, nama_vaksin, usia_bulan, keterangan } = req.body;
 
-  if (!kode || !nama_vaksin || !usia_bulan) {
+  if (
+    !kode ||
+    !nama_vaksin ||
+    usia_bulan === undefined ||
+    usia_bulan === null ||
+    usia_bulan === ""
+  ) {
     return res.status(400).json({
       success: false,
       message: "Data vaksin tidak lengkap",
