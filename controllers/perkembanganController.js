@@ -610,7 +610,6 @@ export const getSKDN = async (req, res) => {
             });
         }
 
-        // Helper untuk membungkus db.query ke dalam Promise agar bisa pakai async/await
         const query = (sql, params) => {
             return new Promise((resolve, reject) => {
                 db.query(sql, params, (err, result) => {
@@ -620,41 +619,72 @@ export const getSKDN = async (req, res) => {
             });
         };
 
-        // 1. HITUNG S (Total Balita - Sasaran) — hanya yang BELUM LULUS
+        // 1. S (sasaran balita aktif)
         const sqlS = `
             SELECT COUNT(*) AS S
             FROM balita b
             LEFT JOIN kelulusan_balita k ON k.nik_balita = b.nik_balita
-            WHERE k.status IS NULL
+            WHERE 
+            (
+                k.status IS NULL
+                OR (
+                    k.status = 'LULUS'
+                    AND (
+                         YEAR(k.tanggal_lulus) > ?
+                      OR (YEAR(k.tanggal_lulus) = ? AND MONTH(k.tanggal_lulus) >= ?)
+                    )
+                )
+            )
         `;
-        const resultS = await query(sqlS);
+        const resultS = await query(sqlS, [tahun, tahun, bulan]);
         const S = resultS[0].S;
 
-        // 2. HITUNG K (Memiliki KMS)
+        // 2. K (balita yang punya KMS)
         const sqlK = `
             SELECT COUNT(DISTINCT b.nik_balita) AS K_PERSISTEN
             FROM balita b
             LEFT JOIN kelulusan_balita k ON k.nik_balita = b.nik_balita
             INNER JOIN perkembangan_balita p ON b.nik_balita = p.nik_balita
-            WHERE (p.kms = 'Ada' OR p.kms = 'ada')
-            AND k.status IS NULL
+            WHERE 
+            (p.kms = 'Ada' OR p.kms = 'ada')
+            AND 
+            (
+                k.status IS NULL
+                OR (
+                    k.status = 'LULUS'
+                    AND (
+                         YEAR(k.tanggal_lulus) > ?
+                      OR (YEAR(k.tanggal_lulus) = ? AND MONTH(k.tanggal_lulus) >= ?)
+                    )
+                )
+            )
         `;
-        const resultK = await query(sqlK);
+        const resultK = await query(sqlK, [tahun, tahun, bulan]);
         const K = resultK[0].K_PERSISTEN;
 
-        // 3. HITUNG D (Datang Ditimbang)
+        // 3. D (Datang ditimbang bulan ini)
         const sqlD = `
             SELECT COUNT(DISTINCT p.nik_balita) AS D
             FROM perkembangan_balita p
             LEFT JOIN kelulusan_balita k ON k.nik_balita = p.nik_balita
             WHERE MONTH(p.tanggal_perubahan) = ?
             AND YEAR(p.tanggal_perubahan) = ?
-            AND k.status IS NULL
+            AND 
+            (
+                k.status IS NULL
+                OR (
+                    k.status = 'LULUS'
+                    AND (
+                         YEAR(k.tanggal_lulus) > ?
+                      OR (YEAR(k.tanggal_lulus) = ? AND MONTH(k.tanggal_lulus) >= ?)
+                    )
+                )
+            )
         `;
-        const resultD = await query(sqlD, [bulan, tahun]);
+        const resultD = await query(sqlD, [bulan, tahun, tahun, tahun, bulan]);
         const D = resultD[0].D;
 
-        // 4. HITUNG N (Naik Berat Badan)
+        // 4. N (Naik Berat Badan)
         const sqlN = `
             SELECT 
                 p1.nik_balita,
@@ -671,38 +701,57 @@ export const getSKDN = async (req, res) => {
             LEFT JOIN kelulusan_balita k ON k.nik_balita = p1.nik_balita
             WHERE MONTH(p1.tanggal_perubahan) = ?
             AND YEAR(p1.tanggal_perubahan) = ?
-            AND k.status IS NULL
+            AND 
+            (
+                k.status IS NULL
+                OR (
+                    k.status = 'LULUS'
+                    AND (
+                         YEAR(k.tanggal_lulus) > ?
+                      OR (YEAR(k.tanggal_lulus) = ? AND MONTH(k.tanggal_lulus) >= ?)
+                    )
+                )
+            )
         `;
-        const resultN = await query(sqlN, [bulan, tahun]);
+        const resultN = await query(sqlN, [bulan, tahun, tahun, tahun, bulan]);
         const N = resultN.filter(r => r.bb_lalu !== null && r.bb_sekarang > r.bb_lalu).length;
 
-        // 5. HITUNG JUMLAH LULUS PER BULAN (NEW)
+        // 5. Lulus bulan tersebut
         const sqlLulus = `
             SELECT COUNT(*) AS total_lulus
             FROM kelulusan_balita
-            WHERE MONTH(tanggal_lulus) = ? 
+            WHERE MONTH(tanggal_lulus) = ?
             AND YEAR(tanggal_lulus) = ?
         `;
         const resultLulus = await query(sqlLulus, [bulan, tahun]);
         const jumlahLulus = resultLulus[0].total_lulus;
 
-        // 6. HITUNG S YANG UMURNYA 36 BULAN (NEW)
-        // Menggunakan logika: (TahunCek * 12 + BulanCek) - (TahunLahir * 12 + BulanLahir) = 36
+        // 6. S berumur 36 bulan
         const sqlS36 = `
             SELECT COUNT(*) AS s_36
             FROM balita b
             LEFT JOIN kelulusan_balita k ON k.nik_balita = b.nik_balita
-            WHERE k.status IS NULL
+            WHERE 
+            (
+                k.status IS NULL
+                OR (
+                    k.status = 'LULUS'
+                    AND (
+                         YEAR(k.tanggal_lulus) > ?
+                      OR (YEAR(k.tanggal_lulus) = ? AND MONTH(k.tanggal_lulus) >= ?)
+                    )
+                )
+            )
             AND ((? * 12 + ?) - (YEAR(b.tanggal_lahir) * 12 + MONTH(b.tanggal_lahir))) = 36
         `;
-        const resultS36 = await query(sqlS36, [tahun, bulan]);
+        const resultS36 = await query(sqlS36, [tahun, tahun, bulan, tahun, bulan]);
         const jumlahS36 = resultS36[0].s_36;
 
-        // HITUNG PERSENTASE
+        // PERSENTASE
         const K_S = S > 0 ? (K / S * 100).toFixed(2) : "0.00";
         const D_S = S > 0 ? (D / S * 100).toFixed(2) : "0.00";
         const N_D = D > 0 ? (N / D * 100).toFixed(2) : "0.00";
-        const N_S = S > 0 ? (N / S * 100).toFixed(2) : "0.00"; // (NEW)
+        const N_S = S > 0 ? (N / S * 100).toFixed(2) : "0.00";
 
         return res.status(200).json({
             success: true,
@@ -712,14 +761,9 @@ export const getSKDN = async (req, res) => {
             K,
             D,
             N,
-            jumlah_lulus: jumlahLulus, // Data baru
-            jumlah_s_36: jumlahS36,    // Data baru
-            persentase: { 
-                K_S, 
-                D_S, 
-                N_D,
-                N_S // Data baru
-            }
+            jumlah_lulus: jumlahLulus,
+            jumlah_s_36: jumlahS36,
+            persentase: { K_S, D_S, N_D, N_S }
         });
 
     } catch (error) {
@@ -769,10 +813,20 @@ export const getStatistikPerkembangan = (req, res) => {
                 LEFT JOIN kelulusan_balita k ON k.nik_balita = b.nik_balita
                 WHERE MONTH(p.tanggal_perubahan) = ?
                 AND YEAR(p.tanggal_perubahan) = ?
-                AND k.status IS NULL
+
+                AND (
+                    k.status IS NULL
+                    OR (
+                        k.status = 'LULUS'
+                        AND (
+                            YEAR(k.tanggal_lulus) > ?
+                            OR (YEAR(k.tanggal_lulus) = ? AND MONTH(k.tanggal_lulus) >= ?)
+                        )
+                    )
+                )
             `;
 
-            db.query(sql, [bulan, tahunDipakai], (err, results) => {
+            db.query(sql, [bulan, tahunDipakai, tahunDipakai, tahunDipakai, bulan], (err, results) => {
                 if (err) {
                     console.error("[ERROR] Query statistik:", err);
                     return res.status(500).json({ message: "Gagal mengambil data perkembangan" });

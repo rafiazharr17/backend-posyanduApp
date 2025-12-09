@@ -104,7 +104,7 @@ export const getDetailPerkembangan = (req, res) => {
     }
 
     const semesterStart = bulan <= 6 ? 1 : 7;
-    const semesterEnd = bulan <= 6 ? 6 : 12;
+    const semesterEnd  = bulan <= 6 ? 6 : 12;
 
     const sql = `
       SELECT
@@ -120,68 +120,95 @@ export const getDetailPerkembangan = (req, res) => {
         b.rt,
         b.rw,
 
-        MONTH(p.tanggal_perubahan) AS bulan,
+        MONTH(p.tanggal_perubahan) AS bulan_perubahan,
         p.lingkar_lengan,
         p.lingkar_kepala,
         p.tinggi_badan,
-        p.berat_badan
+        p.berat_badan,
 
-      FROM perkembangan_balita p
-      JOIN balita b ON p.nik_balita = b.nik_balita
-      WHERE YEAR(p.tanggal_perubahan) = ?
-      AND MONTH(p.tanggal_perubahan) BETWEEN ? AND ?
-      ORDER BY b.nama_balita ASC
+        kel.status AS status_lusus,
+        kel.tanggal_lulus
+
+      FROM balita b
+
+      LEFT JOIN kelulusan_balita kel
+        ON kel.nik_balita = b.nik_balita
+
+      LEFT JOIN perkembangan_balita p
+        ON p.nik_balita = b.nik_balita
+        AND YEAR(p.tanggal_perubahan) = ?
+        AND MONTH(p.tanggal_perubahan) BETWEEN ? AND ?
+
+      WHERE
+      (
+        kel.status IS NULL
+
+        OR (
+          kel.status = 'LULUS'
+          AND (
+              YEAR(kel.tanggal_lulus) > ?
+              OR (YEAR(kel.tanggal_lulus) = ? AND MONTH(kel.tanggal_lulus) >= ?)
+          )
+        )
+      )
+
+      ORDER BY b.nama_balita ASC, p.tanggal_perubahan ASC
     `;
 
-    db.query(sql, [tahun, semesterStart, semesterEnd], (err, results) => {
-      if (err) {
-        console.error("[ERROR]", err);
-        return res.status(500).json({ message: "Gagal mengambil data" });
-      }
-
-      const grouped = {};
-
-      results.forEach(row => {
-        if (!grouped[row.nik]) {
-          grouped[row.nik] = {
-            nik: row.nik,
-            nama: row.nama,
-            jenis_kelamin: row.jenis_kelamin === 'L' ? "Laki-laki" : "Perempuan",
-            tanggal_lahir: row.tanggal_lahir,
-            anak_ke: row.anak_ke_berapa,
-            nama_ortu: row.nama_ortu,
-            nik_ortu: row.nik_ortu,
-            nomor_hp_ortu: row.nomor_telp_ortu,
-            alamat: row.alamat,
-            rt: row.rt,
-            rw: row.rw,
-            bulan: {}
-          };
+    db.query(
+      sql,
+      [tahun, semesterStart, semesterEnd, tahun, tahun, bulan],
+      (err, results) => {
+        if (err) {
+          console.error("[ERROR DETAIL PERKEMBANGAN]", err);
+          return res.status(500).json({ message: "Gagal mengambil data" });
         }
 
-        grouped[row.nik].bulan[row.bulan] = {
-          ll: parseFloat(row.lingkar_lengan),
-          lk: parseFloat(row.lingkar_kepala),
-          tb: parseFloat(row.tinggi_badan),
-          bb: parseFloat(row.berat_badan),
-        };
-      });
+        const grouped = {};
 
-      return res.status(200).json({
-        success: true,
-        tahun,
-        bulan_mulai: semesterStart,
-        bulan_selesai: semesterEnd,
-        data: Object.values(grouped)
-      });
-    });
+        results.forEach(row => {
+          if (!grouped[row.nik]) {
+            grouped[row.nik] = {
+              nik: row.nik,
+              nama: row.nama,
+              jenis_kelamin: row.jenis_kelamin === "L" ? "Laki-laki" : "Perempuan",
+              tanggal_lahir: row.tanggal_lahir,
+              anak_ke: row.anak_ke_berapa,
+              nama_ortu: row.nama_ortu,
+              nik_ortu: row.nik_ortu,
+              nomor_hp_ortu: row.nomor_telp_ortu,
+              alamat: row.alamat,
+              rt: row.rt,
+              rw: row.rw,
+              status_lulus: row.status_lusus,
+              tanggal_lulus: row.tanggal_lulus,
+              bulan: {}
+            };
+          }
+
+          if (row.bulan_perubahan) {
+            grouped[row.nik].bulan[row.bulan_perubahan] = {
+              ll: row.lingkar_lengan !== null ? parseFloat(row.lingkar_lengan) : null,
+              lk: row.lingkar_kepala !== null ? parseFloat(row.lingkar_kepala) : null,
+              tb: row.tinggi_badan !== null ? parseFloat(row.tinggi_badan) : null,
+              bb: row.berat_badan !== null ? parseFloat(row.berat_badan) : null
+            };
+          }
+        });
+
+        res.status(200).json({
+          success: true,
+          tahun,
+          bulan_mulai: semesterStart,
+          bulan_selesai: semesterEnd,
+          data: Object.values(grouped)
+        });
+      }
+    );
 
   } catch (error) {
     console.error("[ERROR] Semester perkembangan:", error);
-    res.status(500).json({
-      success: false,
-      message: "Terjadi kesalahan pada server"
-    });
+    res.status(500).json({ success: false, message: "Terjadi kesalahan pada server" });
   }
 };
 
@@ -191,12 +218,14 @@ export const getLaporanKhusus = (req, res) => {
     const bulan = parseInt(req.query.bulan);
     const tahun = parseInt(req.query.tahun);
 
-    // Hanya Februari (2) dan Agustus (8)
     if (![2, 8].includes(bulan)) {
       return res.status(400).json({
         message: "Laporan khusus hanya tersedia untuk bulan Februari dan Agustus"
       });
     }
+
+    const semesterStart = bulan <= 6 ? 1 : 7;
+    const semesterEnd  = bulan <= 6 ? 6 : 12;
 
     const sql = `
       SELECT
@@ -213,46 +242,111 @@ export const getLaporanKhusus = (req, res) => {
         b.rt,
         b.rw,
 
-        b.bb_lahir,     
-        b.tb_lahir,     
+        b.bb_lahir,
+        b.tb_lahir,
 
-        p.berat_badan AS bb_bulan_ini,
-        p.tinggi_badan AS tb_bulan_ini,
+        p.berat_badan AS bb_bulan,
+        p.tinggi_badan AS tb_bulan,
+        p.lingkar_lengan,
+        p.lingkar_kepala,
         p.cara_ukur,
         p.kms,
         p.imd,
         p.asi_eks,
-        p.vitamin_a
+        p.vitamin_a,
+        MONTH(p.tanggal_perubahan) AS bulan_perubahan,
+
+        kel.status AS status_lulus,
+        kel.tanggal_lulus
 
       FROM balita b
+
+      LEFT JOIN kelulusan_balita kel
+        ON kel.nik_balita = b.nik_balita
+
       LEFT JOIN perkembangan_balita p
         ON b.nik_balita = p.nik_balita
-        AND MONTH(p.tanggal_perubahan) = ?
         AND YEAR(p.tanggal_perubahan) = ?
+        AND MONTH(p.tanggal_perubahan) BETWEEN ? AND ?
 
-      ORDER BY b.nama_balita ASC
+      WHERE
+      (
+        kel.status IS NULL
+
+        OR (
+          kel.status = 'LULUS'
+          AND (
+              YEAR(kel.tanggal_lulus) > ?
+              OR (YEAR(kel.tanggal_lulus) = ? AND MONTH(kel.tanggal_lulus) >= ?)
+          )
+        )
+      )
+
+      ORDER BY b.nama_balita ASC, p.tanggal_perubahan ASC
     `;
 
-    db.query(sql, [bulan, tahun], (err, results) => {
-      if (err) {
-        console.error("[ERROR LAPORAN KHUSUS]", err);
-        return res.status(500).json({
-          message: "Gagal mengambil data laporan khusus"
+    db.query(
+      sql,
+      [tahun, semesterStart, semesterEnd, tahun, tahun, bulan],
+      (err, results) => {
+        if (err) {
+          console.error("[ERROR LAPORAN KHUSUS]", err);
+          return res.status(500).json({ message: "Gagal mengambil data laporan khusus" });
+        }
+
+        const grouped = {};
+
+        results.forEach(row => {
+          if (!grouped[row.nik]) {
+            grouped[row.nik] = {
+              nik: row.nik,
+              no_kk: row.no_kk,
+              nama: row.nama,
+              jenis_kelamin: row.jenis_kelamin === "L" ? "Laki-laki" : "Perempuan",
+              tanggal_lahir: row.tanggal_lahir,
+              anak_ke_berapa: row.anak_ke_berapa,
+              nama_ortu: row.nama_ortu,
+              nik_ortu: row.nik_ortu,
+              nomor_telp_ortu: row.nomor_telp_ortu,
+              alamat: row.alamat,
+              rt: row.rt,
+              rw: row.rw,
+              bb_lahir: row.bb_lahir,
+              tb_lahir: row.tb_lahir,
+              status_lulus: row.status_lulus,
+              tanggal_lulus: row.tanggal_lulus,
+              bulan: {}
+            };
+          }
+
+          if (row.bulan_perubahan) {
+            grouped[row.nik].bulan[row.bulan_perubahan] = {
+              bb: row.bb_bulan !== null ? parseFloat(row.bb_bulan) : null,
+              tb: row.tb_bulan !== null ? parseFloat(row.tb_bulan) : null,
+              ll: row.lingkar_lengan !== null ? parseFloat(row.lingkar_lengan) : null,
+              lk: row.lingkar_kepala !== null ? parseFloat(row.lingkar_kepala) : null,
+              cara_ukur: row.cara_ukur,
+              kms: row.kms,
+              imd: row.imd,
+              asi_eks: row.asi_eks,
+              vitamin_a: row.vitamin_a
+            };
+          }
+        });
+
+        res.status(200).json({
+          success: true,
+          bulan,
+          tahun,
+          bulan_mulai: semesterStart,
+          bulan_selesai: semesterEnd,
+          data: Object.values(grouped)
         });
       }
-
-      return res.status(200).json({
-        success: true,
-        bulan,
-        tahun,
-        data: results
-      });
-    });
+    );
 
   } catch (error) {
     console.error("[ERROR LAPORAN KHUSUS]", error);
-    res.status(500).json({
-      message: "Terjadi kesalahan server"
-    });
+    res.status(500).json({ message: "Terjadi kesalahan server" });
   }
 };
