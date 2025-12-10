@@ -1,6 +1,7 @@
 import db from "../db.js";
 
 const isNumeric = (value) => /^\d+$/.test(value);
+
 const validateNumericFields = (fields) => {
   const rules = {
     nik_balita: { length: 16, label: "NIK Balita" },
@@ -29,6 +30,27 @@ const validateNumericFields = (fields) => {
   return null;
 };
 
+// VALIDASI BB & TB 
+const validateOptionalMeasurements = (bb, tb) => {
+  // BB boleh kosong
+  if (bb && bb.trim() !== "") {
+    const bbVal = parseFloat(bb);
+    if (isNaN(bbVal) || bbVal < 1 || bbVal > 6) {
+      return "BB lahir harus 1 - 6 kg";
+    }
+  }
+
+  // TB boleh kosong
+  if (tb && tb.trim() !== "") {
+    const tbVal = parseFloat(tb);
+    if (isNaN(tbVal) || tbVal < 30 || tbVal > 60) {
+      return "TB lahir harus 30 - 60 cm";
+    }
+  }
+
+  return null;
+};
+
 // Tambah data balita
 export const tambahBalita = (req, res) => {
   const {
@@ -44,11 +66,11 @@ export const tambahBalita = (req, res) => {
     alamat,
     rt,
     rw,
-    bb_lahir,   
-    tb_lahir   
+    bb_lahir,  
+    tb_lahir  
   } = req.body;
 
-  const error = validateNumericFields({
+  const errorNum = validateNumericFields({
     nik_balita,
     anak_ke_berapa,
     nomor_kk,
@@ -58,7 +80,10 @@ export const tambahBalita = (req, res) => {
     rw,
   });
 
-  if (error) return res.status(400).json({ message: error });
+  if (errorNum) return res.status(400).json({ message: errorNum });
+
+  const errorMeasure = validateOptionalMeasurements(bb_lahir, tb_lahir);
+  if (errorMeasure) return res.status(400).json({ message: errorMeasure });
 
   const sql = `
     INSERT INTO balita (
@@ -84,8 +109,8 @@ export const tambahBalita = (req, res) => {
       alamat,
       rt,
       rw,
-      bb_lahir,  
-      tb_lahir   
+      bb_lahir || null, 
+      tb_lahir || null
     ],
     (err) => {
       if (err) {
@@ -142,11 +167,11 @@ export const updateBalita = (req, res) => {
     alamat,
     rt,
     rw,
-    bb_lahir,   
-    tb_lahir  
+    bb_lahir,  
+    tb_lahir   
   } = req.body;
 
-  const error = validateNumericFields({
+  const errorNum = validateNumericFields({
     anak_ke_berapa,
     nomor_kk,
     nik_ortu,
@@ -155,7 +180,10 @@ export const updateBalita = (req, res) => {
     rw,
   });
 
-  if (error) return res.status(400).json({ message: error });
+  if (errorNum) return res.status(400).json({ message: errorNum });
+
+  const errorMeasure = validateOptionalMeasurements(bb_lahir, tb_lahir);
+  if (errorMeasure) return res.status(400).json({ message: errorMeasure });
 
   const sql = `
     UPDATE balita SET
@@ -179,8 +207,8 @@ export const updateBalita = (req, res) => {
       alamat,
       rt,
       rw,
-      bb_lahir,  
-      tb_lahir,  
+      bb_lahir || null,
+      tb_lahir || null,
       nik
     ],
     (err) => {
