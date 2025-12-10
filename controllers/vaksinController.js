@@ -37,21 +37,21 @@ export const getVaksinBalita = (req, res) => {
     const total = totalRows[0].total;
 
     const sql = `
-      SELECT 
-        vb.id,
-        vb.vaksin_id,
-        v.nama_vaksin,
-        v.kode,
-        v.usia_bulan,
-        vb.tanggal_vaksin AS tanggal,
-        vb.petugas,
-        vb.batch_no,
-        vb.lokasi
-      FROM vaksin_balita vb
-      JOIN vaksin v ON v.id = vb.vaksin_id
-      WHERE vb.nik_balita = ?
-      ORDER BY v.usia_bulan ASC
-    `;
+          SELECT 
+            vb.id,
+            vb.vaksin_id,
+            v.nama_vaksin,
+            v.kode,
+            v.usia_bulan,
+            DATE_FORMAT(vb.tanggal_vaksin, '%Y-%m-%d') AS tanggal,
+            vb.petugas,
+            vb.batch_no,
+            vb.lokasi
+          FROM vaksin_balita vb
+          JOIN vaksin v ON v.id = vb.vaksin_id
+          WHERE vb.nik_balita = ?
+          ORDER BY v.usia_bulan ASC
+        `;
 
 
     db.query(sql, [nik], (errTaken, taken) => {
