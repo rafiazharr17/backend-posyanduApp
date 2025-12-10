@@ -57,60 +57,53 @@ const hitungProgressUmur = (nik) => {
   });
 };
 
-// ===== CONTROLLER =====
-
 // GET kelulusan balita (status + progres)
 export const getKelulusanBalita = async (req, res) => {
   const nik = req.params.nik;
 
   try {
-    // Progress vaksin
     const vaksin = await hitungProgressVaksin(nik);
-
-    // Progress umur
     const umur = await hitungProgressUmur(nik);
+    
     if (!umur) {
-      return res.json({
-        success: false,
-        message: "Data balita tidak ditemukan."
-      });
+      return res.json({ success: false, message: "Data balita tidak ditemukan." });
     }
 
-    // Cek apakah balita sudah punya record kelulusan
-    db.query(
-      "SELECT * FROM kelulusan_balita WHERE nik_balita = ?",
-      [nik],
-      (err, gradRows) => {
-        if (err)
-          return res.status(500).json({ success: false, message: err.message });
+    const sql = `
+      SELECT 
+        status, 
+        keterangan,
+        DATE_FORMAT(tanggal_lulus, '%Y-%m-%d') as tanggal_lulus 
+      FROM kelulusan_balita 
+      WHERE nik_balita = ?
+    `;
 
-        let status = "BELUM LULUS";
-        let tanggal_lulus = null;
-        let keterangan = null;
+    db.query(sql, [nik], (err, gradRows) => {
+      if (err) return res.status(500).json({ success: false, message: err.message });
 
-        if (gradRows.length > 0) {
-          status = gradRows[0].status;
-          tanggal_lulus = gradRows[0].tanggal_lulus;
-          keterangan = gradRows[0].keterangan;
-        }
+      let status = "BELUM LULUS";
+      let tanggal_lulus = null;
+      let keterangan = null;
 
-        return res.json({
-          success: true,
-          status,
-          tanggal_lulus,
-          keterangan,
-          vaksin,
-          umur,
-          siap_lulus:
-            vaksin.progress_vaksin === 1 && umur.progress_umur === 1
-        });
+      if (gradRows.length > 0) {
+        status = gradRows[0].status;
+        tanggal_lulus = gradRows[0].tanggal_lulus; 
+        keterangan = gradRows[0].keterangan;
       }
-    );
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message
+
+      return res.json({
+        success: true,
+        status,
+        tanggal_lulus, 
+        keterangan,
+        vaksin,
+        umur,
+        siap_lulus: vaksin.progress_vaksin === 1 && umur.progress_umur === 1
+      });
     });
+
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -227,6 +220,36 @@ export const setKelulusanBalita = (req, res) => {
       return res.json({
         success: true,
         message: message
+      });
+    }
+  );
+};
+
+// DELETE batalkan kelulusan (Hapus data kelulusan)
+export const deleteKelulusanBalita = (req, res) => {
+  const nik = req.params.nik;
+
+  db.query(
+    `DELETE FROM kelulusan_balita WHERE nik_balita = ?`,
+    [nik],
+    (err, result) => {
+      if (err) {
+        return res.status(500).json({
+          success: false,
+          message: err.message,
+        });
+      }
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Data kelulusan tidak ditemukan atau sudah dihapus.",
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Status kelulusan berhasil dibatalkan. Balita kembali aktif.",
       });
     }
   );

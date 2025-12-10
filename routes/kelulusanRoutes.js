@@ -7,6 +7,7 @@ import {
   getRiwayatPindah,
   getSemuaBalitaLulus,
   getSemuaBalitaStatus,
+  deleteKelulusanBalita
 } from "../controllers/kelulusanController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 
@@ -18,5 +19,6 @@ router.get("/:nik", authenticateToken, getKelulusanBalita);
 router.post("/:nik/auto", authenticateToken, autoLulusBalita);
 router.post("/:nik/set-lulus", authenticateToken, setKelulusanBalita);
 router.post("/:nik/pindah", authenticateToken, setPindahBalita);
+router.delete('/:nik', authenticateToken, deleteKelulusanBalita);
 
 export default router;
