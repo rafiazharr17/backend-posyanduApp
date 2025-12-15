@@ -20,14 +20,6 @@ const __dirname = path.dirname(__filename);
 app.use(cors());
 app.use(express.json());
 
-db.connect((err) => {
-  if (err) {
-    console.error("Gagal terhubung ke database:", err);
-  } else {
-    console.log("Terhubung ke database MySQL!");
-  }
-});
-
 app.use("/api/auth", authRoutes);    
 app.use("/api/balita", balitaRoutes); 
 app.use("/api/perkembangan", perkembanganRoutes);
